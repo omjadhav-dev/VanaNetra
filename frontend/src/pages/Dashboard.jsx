@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   Bell,
   Map,
@@ -58,6 +58,7 @@ function Dashboard() {
       <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-[#202b25] bg-[#0b100d]">
 
         {/* LOGO */}
+        <Link to="/dashboard/alerts">
         <div className="flex h-[72px] items-center gap-3 border-b border-[#202b25] px-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
             <Leaf size={19} />
@@ -73,6 +74,7 @@ function Dashboard() {
             </p>
           </div>
         </div>
+        </Link>
 
         {/* NAVIGATION */}
         <nav className="flex-1 px-3 py-6">
