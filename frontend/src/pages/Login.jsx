@@ -32,7 +32,7 @@ function Login() {
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
             <Leaf size={19} />
           </span>
-          <span className="font-semibold">ForestWatch</span>
+          <span className="font-semibold">VanaNetra</span>
         </Link>
 
         <div className="max-w-xl">

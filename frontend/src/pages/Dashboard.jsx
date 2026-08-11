@@ -66,7 +66,7 @@ function Dashboard() {
 
           <div>
             <p className="font-semibold">
-              ForestWatch
+              VanaNetra
             </p>
 
             <p className="text-[9px] uppercase tracking-[0.2em] text-gray-600">

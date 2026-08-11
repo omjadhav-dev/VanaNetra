@@ -327,7 +327,7 @@ function Analyze() {
               <Leaf size={19} />
             </span>
 
-            <span className="font-semibold">ForestWatch</span>
+            <span className="font-semibold">VanaNetra</span>
           </Link>
         )}
 

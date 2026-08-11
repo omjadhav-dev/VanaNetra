@@ -53,7 +53,7 @@ function Register() {
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
             <Leaf size={19} />
           </span>
-          <span className="font-semibold">ForestWatch</span>
+          <span className="font-semibold">VanaNetra</span>
         </Link>
 
         <div className="max-w-xl">
@@ -81,7 +81,7 @@ function Register() {
         <div className="w-full max-w-md rounded-2xl border border-[#26342c] bg-[#101713] p-7 sm:p-9">
           <div className="mb-7">
             <p className="text-xs uppercase tracking-[0.22em] text-emerald-400">
-              ForestWatch
+              VanaNetra
             </p>
             <h2 className="mt-3 text-3xl font-semibold">Create account</h2>
             <p className="mt-2 text-sm text-gray-500">

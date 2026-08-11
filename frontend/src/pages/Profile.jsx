@@ -84,7 +84,7 @@ function Profile() {
           </h1>
 
           <p className="mt-2 text-sm text-gray-500">
-            Manage your ForestWatch account and official information.
+            Manage your VanaNetra account and official information.
           </p>
         </div>
 

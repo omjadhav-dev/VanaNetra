@@ -8,7 +8,7 @@ function Footer() {
         <div className="flex items-center gap-2">
           <Leaf size={16} className="text-emerald-500" />
           <p className="text-sm text-gray-500">
-            © 2026 ForestWatch. Geospatial deforestation intelligence.
+            © 2026 VanaNetra. Geospatial deforestation intelligence.
           </p>
         </div>
 

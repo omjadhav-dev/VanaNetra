@@ -18,7 +18,7 @@ function Header() {
           </span>
 
           <div>
-            <p className="text-base font-semibold tracking-tight">ForestWatch</p>
+            <p className="text-base font-semibold tracking-tight">VanaNetra</p>
             <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500">
               Geospatial intelligence
             </p>
