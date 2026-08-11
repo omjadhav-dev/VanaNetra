@@ -18,10 +18,9 @@ function Maps() {
           Explore monitored regions and their current deforestation risk.
         </p>
 
-        {/* Map Preview */}
+        {/*
         <div className="mt-6 overflow-hidden rounded-xl border border-[#26342c] bg-[#101713]">
 
-          {/* Map Header */}
           <div className="flex items-center justify-between border-b border-[#26342c] px-5 py-4">
             <div>
               <p className="text-xs uppercase tracking-[0.18em] text-gray-600">
@@ -39,10 +38,8 @@ function Maps() {
             </button>
           </div>
 
-          {/* Map Area */}
           <div className="relative h-[430px] overflow-hidden bg-[#0b120e]">
 
-            {/* Map grid */}
             <div
               className="absolute inset-0 opacity-40"
               style={{
@@ -52,7 +49,6 @@ function Maps() {
               }}
             />
 
-            {/* Region markers */}
             <div className="absolute left-[25%] top-[30%]">
               <MapPin className="text-red-400" size={30} />
             </div>
@@ -69,9 +65,9 @@ function Maps() {
               <MapPin className="text-emerald-400" size={30} />
             </div>
 
-            {/* Center message */}
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="rounded-xl border border-[#304037] bg-[#0b100d]/90 px-7 py-5 text-center backdrop-blur">
+
                 <MapPin
                   size={28}
                   className="mx-auto text-emerald-400"
@@ -84,11 +80,12 @@ function Maps() {
                 <p className="mt-1 text-xs text-gray-500">
                   Interactive regional map will be displayed here
                 </p>
+
               </div>
             </div>
 
-            {/* Legend */}
             <div className="absolute bottom-4 left-4 rounded-lg border border-[#304037] bg-[#0b100d]/90 px-4 py-3 backdrop-blur">
+
               <p className="text-[10px] uppercase tracking-[0.15em] text-gray-600">
                 Risk level
               </p>
@@ -99,10 +96,13 @@ function Maps() {
                 <span className="text-amber-400">● Medium</span>
                 <span className="text-emerald-400">● Low</span>
               </div>
+
             </div>
 
           </div>
         </div>
+        */}
+
       </div>
     </div>
   );
