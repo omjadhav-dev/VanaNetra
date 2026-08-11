@@ -5,11 +5,6 @@ function Maps() {
     <div className="px-6 py-6 lg:px-7">
       <div className="mx-auto max-w-[1400px]">
 
-        {/* Header */}
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-400">
-          Geospatial view
-        </p>
-
         <h1 className="mt-2 text-3xl font-semibold">
           Region severity map
         </h1>
