@@ -41,7 +41,7 @@ function Home() {
   ];
 
   return (
-    <div className="bg-[#080c0a]">
+    <div className="bg-[#f6f9f7]">
       <section className="relative min-h-[calc(100vh-72px)] overflow-hidden">
         <img
           src={Forest}
@@ -99,18 +99,18 @@ function Home() {
         </div>
       </section>
 
-      <section className="border-y border-[#202b25] bg-[#0b100d] px-6 py-20">
+      <section className="border-y border-[#e2e8e4] bg-[#ffffff] px-6 py-20">
         <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-2">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600">
               Evidence & analysis
             </p>
 
-            <h2 className="mt-3 text-3xl font-semibold leading-tight sm:text-4xl">
+            <h2 className="mt-3 text-3xl font-semibold leading-tight text-gray-900 sm:text-4xl">
               From pixels to prosecution-ready evidence
             </h2>
 
-            <p className="mt-5 max-w-xl leading-7 text-gray-400">
+            <p className="mt-5 max-w-xl leading-7 text-gray-600">
               Every comparison can produce an auditable record with measured
               loss, affected hectares and a computed severity score. Events
               above the configured threshold become alerts.
@@ -125,9 +125,9 @@ function Home() {
               ].map(([value, label]) => (
                 <div
                   key={label}
-                  className="rounded-xl border border-[#26342c] bg-[#101713] p-5"
+                  className="rounded-xl border border-[#dbe4de] bg-[#ffffff] p-5"
                 >
-                  <p className="text-2xl font-semibold">{value}</p>
+                  <p className="text-2xl font-semibold text-gray-900">{value}</p>
                   <p className="mt-1 text-xs font-medium tracking-wide text-gray-500">
                     {label}
                   </p>
@@ -136,7 +136,7 @@ function Home() {
             </div>
           </div>
 
-          <div className="overflow-hidden rounded-2xl border border-[#26342c] bg-[#101713]">
+          <div className="overflow-hidden rounded-2xl border border-[#dbe4de] bg-[#ffffff]">
             <img
               src={BeforeAfter}
               alt="Before and after forest comparison"
@@ -146,7 +146,7 @@ function Home() {
         </div>
       </section>
 
-      <section className="bg-[#080c0a] px-6 py-20">
+      <section className="bg-[#f6f9f7] px-6 py-20">
         <div className="mx-auto max-w-7xl">
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             {features.map((feature) => {
@@ -155,17 +155,17 @@ function Home() {
               return (
                 <div
                   key={feature.title}
-                  className="rounded-xl border border-[#26342c] bg-[#101713] p-6 transition hover:-translate-y-1 hover:border-[#3b5547]"
+                  className="rounded-xl border border-[#dbe4de] bg-[#ffffff] p-6 transition hover:-translate-y-1 hover:border-[#7fa08d]"
                 >
-                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-950/70 text-emerald-400">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700">
                     <Icon size={21} />
                   </div>
 
-                  <h3 className="mt-6 text-xl font-semibold">
+                  <h3 className="mt-6 text-xl font-semibold text-gray-900">
                     {feature.title}
                   </h3>
 
-                  <p className="mt-3 text-sm leading-6 text-gray-400">
+                  <p className="mt-3 text-sm leading-6 text-gray-500">
                     {feature.description}
                   </p>
                 </div>
