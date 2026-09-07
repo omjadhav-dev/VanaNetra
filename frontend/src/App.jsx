@@ -11,6 +11,7 @@ import Maps from "./pages/Maps";
 import Trends from "./pages/Trends";
 import Reports from "./pages/Reports";
 import Profile from "./pages/Profile";
+import TransparencyDashboard from "./pages/TransparencyDashboard";
 
 function App() {
   return (
@@ -18,12 +19,11 @@ function App() {
       <Routes>
         <Route element={<MainLayout />}>
           <Route path="/" element={<Home />} />
+          <Route path="/transparency" element={<TransparencyDashboard />} />
         </Route>
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/analyze" element={<Analyze />} />
-
         <Route path="/analyze" element={<Analyze />} />
 
         <Route path="/dashboard" element={<Dashboard />}>
