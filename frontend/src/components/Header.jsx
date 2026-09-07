@@ -1,16 +1,16 @@
 import { Link, NavLink } from "react-router-dom";
-import { Leaf, ScanSearch, ShieldCheck } from "lucide-react";
+import { Leaf, ScanSearch, ShieldCheck, LineChart } from "lucide-react";
 
 function Header() {
   const navClass = ({ isActive }) =>
     `text-sm transition ${
       isActive
-        ? "text-white"
-        : "text-gray-400 hover:text-white"
+        ? "text-gray-900 font-medium"
+        : "text-gray-500 hover:text-gray-900"
     }`;
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#202b25] bg-[#080c0a]/95 backdrop-blur">
+    <header className="sticky top-0 z-50 border-b border-[#e2e8e4] bg-white/95 backdrop-blur">
       <nav className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-6">
         <Link to="/" className="flex items-center gap-3">
           <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700 text-white">
@@ -18,7 +18,7 @@ function Header() {
           </span>
 
           <div>
-            <p className="text-base font-semibold tracking-tight">VanaNetra</p>
+            <p className="text-base font-semibold tracking-tight text-gray-900">VanaNetra</p>
             <p className="text-[9px] uppercase tracking-[0.2em] text-gray-500">
               Geospatial intelligence
             </p>
@@ -29,6 +29,9 @@ function Header() {
           <NavLink to="/analyze" className={navClass}>
             Analyze
           </NavLink>
+          <NavLink to="/transparency" className={navClass}>
+            Public Dashboard
+          </NavLink>
           <NavLink to="/login" className={navClass}>
             Officials
           </NavLink>
@@ -36,11 +39,11 @@ function Header() {
 
         <div className="flex items-center gap-2">
           <Link
-            to="/analyze"
-            className="hidden items-center gap-2 rounded-lg border border-[#304037] px-4 py-2 text-sm text-gray-300 transition hover:border-[#496255] hover:bg-[#101713] hover:text-white sm:inline-flex"
+            to="/transparency"
+            className="hidden items-center gap-2 rounded-lg border border-[#c9d6cd] px-4 py-2 text-sm text-gray-600 transition hover:border-[#8fab9a] hover:bg-[#f0f4f1] hover:text-gray-900 sm:inline-flex"
           >
-            <ScanSearch size={16} />
-            Analyze
+            <LineChart size={16} />
+            Public Dashboard
           </Link>
 
           <Link

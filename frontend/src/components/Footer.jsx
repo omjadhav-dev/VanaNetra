@@ -3,23 +3,26 @@ import { Leaf } from "lucide-react";
 
 function Footer() {
   return (
-    <footer className="border-t border-[#202b25] bg-[#080c0a]">
+    <footer className="border-t border-[#e2e8e4] bg-white">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <Leaf size={16} className="text-emerald-500" />
+          <Leaf size={16} className="text-emerald-600" />
           <p className="text-sm text-gray-500">
             © 2026 VanaNetra. Geospatial deforestation intelligence.
           </p>
         </div>
 
         <div className="flex items-center gap-5">
-          <Link to="/" className="text-sm text-gray-500 transition hover:text-white">
+          <Link to="/" className="text-sm text-gray-500 transition hover:text-gray-900">
             Home
           </Link>
-          <Link to="/analyze" className="text-sm text-gray-500 transition hover:text-white">
+          <Link to="/analyze" className="text-sm text-gray-500 transition hover:text-gray-900">
             Analyze
           </Link>
-          <Link to="/login" className="text-sm text-gray-500 transition hover:text-white">
+          <Link to="/transparency" className="text-sm text-gray-500 transition hover:text-gray-900">
+            Public Dashboard
+          </Link>
+          <Link to="/login" className="text-sm text-gray-500 transition hover:text-gray-900">
             Officials
           </Link>
         </div>
