@@ -10,6 +10,8 @@ import {
   LoaderCircle,
   Images,
   Leaf,
+  History,
+  Plus,
 } from "lucide-react";
 
 function Analyze() {
@@ -30,12 +32,17 @@ function Analyze() {
   const [afterImage, setAfterImage] = useState(null);
   const [afterPreview, setAfterPreview] = useState(null);
 
+  // TIME-LAPSE: ordered list of { file, preview, date }
+  const [snapshots, setSnapshots] = useState([]);
+  const [slider, setSlider] = useState(0);
+
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
 
   const fileInputRef = useRef(null);
   const beforeInputRef = useRef(null);
   const afterInputRef = useRef(null);
+  const snapshotInputRef = useRef(null);
 
   const regions = [
     "Bandhavgarh Belt",
@@ -45,9 +52,9 @@ function Analyze() {
     "Western Ghats Reserve",
   ];
 
-  // -----------------------------
+
   // SINGLE IMAGE UPLOAD
-  // -----------------------------
+
 
   const handleFile = (file) => {
     if (!file) return;
@@ -72,9 +79,9 @@ function Analyze() {
     setStatus("idle");
   };
 
-  // -----------------------------
+
   // BEFORE / AFTER UPLOAD
-  // -----------------------------
+
 
   const handleComparisonFile = (file, side) => {
     if (!file) return;
@@ -109,12 +116,59 @@ function Analyze() {
     setStatus("idle");
   };
 
-  // -----------------------------
+
+  // TIME-LAPSE UPLOAD (multiple snapshots, chronologically ordered)
+
+
+  const handleSnapshotFiles = (fileList) => {
+    const files = Array.from(fileList || []).filter((f) =>
+      f.type.startsWith("image/")
+    );
+
+    if (files.length === 0) return;
+
+    const additions = files.map((file, idx) => ({
+      file,
+      preview: URL.createObjectURL(file),
+      // Demo dates: assumes files are added in chronological order,
+      // spaced two months apart from today backwards.
+      date: new Date(
+        Date.now() - (files.length - idx) * 60 * 24 * 60 * 60 * 1000
+      ).toISOString().slice(0, 10),
+    }));
+
+    setSnapshots((current) => {
+      const merged = [...current, ...additions];
+      setSlider(merged.length - 1);
+      return merged;
+    });
+
+    setResult(null);
+    setStatus("idle");
+  };
+
+  const removeSnapshot = (idx) => {
+    setSnapshots((current) => {
+      const target = current[idx];
+      if (target?.preview) URL.revokeObjectURL(target.preview);
+
+      const next = current.filter((_, i) => i !== idx);
+      setSlider((s) => Math.min(s, Math.max(next.length - 1, 0)));
+      return next;
+    });
+  };
+
+
   // DRAG & DROP
-  // -----------------------------
+
 
   const handleDrop = (e, side = "single") => {
     e.preventDefault();
+
+    if (side === "timelapse") {
+      handleSnapshotFiles(e.dataTransfer.files);
+      return;
+    }
 
     const file = e.dataTransfer.files?.[0];
 
@@ -125,9 +179,9 @@ function Analyze() {
     }
   };
 
-  // -----------------------------
+
   // CLEAR SINGLE IMAGE
-  // -----------------------------
+
 
   const clearImage = (e) => {
     e?.stopPropagation();
@@ -146,9 +200,8 @@ function Analyze() {
     }
   };
 
-  // -----------------------------
   // CLEAR BEFORE / AFTER IMAGE
-  // -----------------------------
+
 
   const clearComparisonImage = (side, e) => {
     e?.stopPropagation();
@@ -181,9 +234,8 @@ function Analyze() {
     setStatus("idle");
   };
 
-  // -----------------------------
   // MODE SELECTION
-  // -----------------------------
+
 
   const selectMode = (nextMode) => {
     setMode(nextMode);
@@ -191,9 +243,8 @@ function Analyze() {
     setStatus("idle");
   };
 
-  // -----------------------------
   // ANALYSIS
-  // -----------------------------
+
 
   const handleAnalyze = () => {
     if (mode === "landcover" && !image) {
@@ -212,6 +263,16 @@ function Analyze() {
       setResult({
         message:
           "Upload both the before and after satellite images to detect changes.",
+      });
+
+      return;
+    }
+
+    if (mode === "timelapse" && snapshots.length < 2) {
+      setStatus("error");
+
+      setResult({
+        message: "Upload at least two dated snapshots to build a time-lapse.",
       });
 
       return;
@@ -236,7 +297,7 @@ function Analyze() {
             ["Urban", "5%"],
           ],
         });
-      } else {
+      } else if (mode === "change") {
         setResult({
           title: "Before / after comparison complete",
           value: "10.81% estimated loss",
@@ -247,13 +308,23 @@ function Analyze() {
             ["Region", region || "Default"],
           ],
         });
+      } else {
+        const span = snapshots.length;
+        setResult({
+          title: "Time-lapse change trajectory complete",
+          value: `${span} snapshots analyzed`,
+          details: [
+            ["Span", `${snapshots[0]?.date} → ${snapshots[span - 1]?.date}`],
+            ["Cumulative loss", "14.6%"],
+            ["Fastest-loss interval", `${snapshots[Math.max(span - 2, 0)]?.date} → ${snapshots[span - 1]?.date}`],
+            ["Region", region || "Default"],
+          ],
+        });
       }
     }, 1000);
   };
 
-  // -----------------------------
   // BEFORE / AFTER UPLOAD BOX
-  // -----------------------------
 
   const UploadBox = ({ side, file, preview: sidePreview, inputRef }) => {
     const isBefore = side === "before";
@@ -264,7 +335,7 @@ function Analyze() {
         onDragOver={(e) => e.preventDefault()}
         onDrop={(e) => handleDrop(e, side)}
         onClick={() => inputRef.current?.click()}
-        className="relative flex min-h-[230px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#304037] bg-[#101713] transition hover:border-emerald-600"
+        className="relative flex min-h-[230px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#c9d6cd] bg-white transition hover:border-emerald-600"
       >
         {sidePreview ? (
           <>
@@ -294,11 +365,11 @@ function Analyze() {
           </>
         ) : (
           <div className="px-5 text-center">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-950/70 text-emerald-400">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
               <UploadCloud size={24} />
             </div>
 
-            <p className="text-base font-medium">{label}</p>
+            <p className="text-base font-medium text-gray-900">{label}</p>
 
             <p className="mt-1.5 text-xs text-gray-500">
               Drop or click to upload
@@ -317,33 +388,35 @@ function Analyze() {
     );
   };
 
+  const activeSnapshot = snapshots[slider];
+
   return (
-    <div className="min-h-screen bg-[#080c0a] px-6 py-10 text-white sm:py-12">
+    <div className="min-h-screen bg-[#f6f9f7] px-6 py-10 text-gray-900 sm:py-12">
       <div className="mx-auto max-w-7xl">
         {/* PUBLIC LOGO ONLY */}
         {!isOfficial && (
           <Link to="/" className="mb-6 flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
-              <Leaf size={19} />
+              <Leaf size={19} className="text-white" />
             </span>
 
-            <span className="font-semibold">VanaNetra</span>
+            <span className="font-semibold text-gray-900">VanaNetra</span>
           </Link>
         )}
 
         {/* PAGE HEADING */}
 
-        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-400">
+        <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600">
           {isOfficial ? "Official Analysis Console" : "Public Analysis Console"}
         </p>
 
-        <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
+        <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">
           Analyze satellite imagery
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-          Upload satellite imagery to classify land cover or compare images to
-          detect changes across monitored regions.
+          Upload satellite imagery to classify land cover, compare two dates for
+          change detection, or scrub through a multi-date time-lapse.
         </p>
 
         {/* ANALYSIS MODE */}
@@ -355,7 +428,7 @@ function Analyze() {
             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
               mode === "landcover"
                 ? "border-emerald-600 bg-emerald-700 text-white"
-                : "border-[#304037] text-gray-400 hover:border-[#496255] hover:text-white"
+                : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
             }`}
           >
             <UploadCloud size={17} />
@@ -368,11 +441,24 @@ function Analyze() {
             className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
               mode === "change"
                 ? "border-emerald-600 bg-emerald-700 text-white"
-                : "border-[#304037] text-gray-400 hover:border-[#496255] hover:text-white"
+                : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
             }`}
           >
             <GitCompareArrows size={17} />
             Change detection
+          </button>
+
+          <button
+            type="button"
+            onClick={() => selectMode("timelapse")}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
+              mode === "timelapse"
+                ? "border-emerald-600 bg-emerald-700 text-white"
+                : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
+            }`}
+          >
+            <History size={17} />
+            Time-lapse
           </button>
         </div>
 
@@ -392,7 +478,7 @@ function Analyze() {
                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
                   region === item
                     ? "border-emerald-600 bg-emerald-700 text-white"
-                    : "border-[#304037] text-gray-400 hover:border-[#496255] hover:text-white"
+                    : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
                 }`}
               >
                 <MapPin size={14} />
@@ -408,12 +494,12 @@ function Analyze() {
           {/* LEFT SIDE */}
 
           <div>
-            {mode === "landcover" ? (
+            {mode === "landcover" && (
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDrop(e)}
                 onClick={() => fileInputRef.current?.click()}
-                className="relative flex min-h-[300px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#304037] bg-[#101713] transition hover:border-emerald-600"
+                className="relative flex min-h-[300px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#c9d6cd] bg-white transition hover:border-emerald-600"
               >
                 {preview ? (
                   <>
@@ -441,11 +527,11 @@ function Analyze() {
                   </>
                 ) : (
                   <div className="text-center">
-                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-950/70 text-emerald-400">
+                    <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
                       <UploadCloud size={26} />
                     </div>
 
-                    <p className="text-lg font-medium">
+                    <p className="text-lg font-medium text-gray-900">
                       Drop a satellite image
                     </p>
 
@@ -463,20 +549,22 @@ function Analyze() {
                   className="hidden"
                 />
               </div>
-            ) : (
-              <div className="rounded-xl border border-[#26342c] bg-[#101713] p-4">
+            )}
+
+            {mode === "change" && (
+              <div className="rounded-xl border border-[#dbe4de] bg-white p-4">
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
                       Before / after imagery
                     </p>
 
-                    <p className="mt-1 text-xs text-gray-600">
+                    <p className="mt-1 text-xs text-gray-500">
                       Upload matching-area images from two dates.
                     </p>
                   </div>
 
-                  <Images size={19} className="text-emerald-400" />
+                  <Images size={19} className="text-emerald-600" />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -497,13 +585,112 @@ function Analyze() {
               </div>
             )}
 
+            {mode === "timelapse" && (
+              <div className="rounded-xl border border-[#dbe4de] bg-white p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Time-lapse imagery
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Upload multiple dated satellite snapshots of the same area.
+                    </p>
+                  </div>
+                  <History size={19} className="text-emerald-600" />
+                </div>
+
+                {snapshots.length === 0 ? (
+                  <div
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={(e) => handleDrop(e, "timelapse")}
+                    onClick={() => snapshotInputRef.current?.click()}
+                    className="relative flex min-h-[280px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#c9d6cd] bg-white transition hover:border-emerald-600"
+                  >
+                    <div className="text-center">
+                      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
+                        <History size={26} />
+                      </div>
+                      <p className="text-lg font-medium text-gray-900">
+                        Drop 2 or more snapshots
+                      </p>
+                      <p className="mt-1.5 text-sm text-gray-500">
+                        Oldest to newest, same area
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative overflow-hidden rounded-xl border border-[#dbe4de] bg-black">
+                      <img
+                        src={activeSnapshot?.preview}
+                        alt={`Snapshot ${activeSnapshot?.date}`}
+                        className="h-[280px] w-full object-cover opacity-95"
+                      />
+
+                      <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
+                        {activeSnapshot?.date}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => removeSnapshot(slider)}
+                        className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/55 text-gray-200 hover:bg-white/10"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
+
+                    {/* SCRUB SLIDER */}
+                    <div className="mt-4 px-1">
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(snapshots.length - 1, 0)}
+                        value={slider}
+                        onChange={(e) => setSlider(Number(e.target.value))}
+                        className="w-full accent-emerald-600"
+                      />
+                      <div className="mt-1.5 flex justify-between text-[11px] text-gray-500">
+                        {snapshots.map((s, idx) => (
+                          <span
+                            key={idx}
+                            className={idx === slider ? "font-semibold text-emerald-700" : ""}
+                          >
+                            {s.date}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => snapshotInputRef.current?.click()}
+                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-[#c9d6cd] px-3 py-2 text-xs text-gray-500 transition hover:border-emerald-600 hover:text-gray-900"
+                    >
+                      <Plus size={14} />
+                      Add more snapshots
+                    </button>
+                  </>
+                )}
+
+                <input
+                  ref={snapshotInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/jpg"
+                  multiple
+                  onChange={(e) => handleSnapshotFiles(e.target.files)}
+                  className="hidden"
+                />
+              </div>
+            )}
+
             {/* ANALYZE BUTTON */}
 
             <button
               type="button"
               onClick={handleAnalyze}
               disabled={status === "processing"}
-              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 text-sm font-semibold transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {status === "processing" ? (
                 <>
@@ -516,7 +703,9 @@ function Analyze() {
 
                   {mode === "landcover"
                     ? "Classify land cover"
-                    : "Compare before & after"}
+                    : mode === "change"
+                    ? "Compare before & after"
+                    : "Analyze time-lapse"}
                 </>
               )}
             </button>
@@ -524,14 +713,14 @@ function Analyze() {
 
           {/* RIGHT SIDE - RESULTS */}
 
-          <div className="rounded-xl border border-[#26342c] bg-[#101713] p-6">
+          <div className="rounded-xl border border-[#dbe4de] bg-white p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-gray-500">
                   Results
                 </p>
 
-                <h2 className="mt-1.5 text-lg font-semibold">
+                <h2 className="mt-1.5 text-lg font-semibold text-gray-900">
                   {status === "processing"
                     ? "Processing imagery"
                     : "Inference output"}
@@ -539,7 +728,7 @@ function Analyze() {
               </div>
 
               {status === "complete" && (
-                <CheckCircle2 size={20} className="text-emerald-400" />
+                <CheckCircle2 size={20} className="text-emerald-600" />
               )}
             </div>
 
@@ -549,6 +738,8 @@ function Analyze() {
               <p className="mt-7 text-sm leading-6 text-gray-500">
                 {mode === "change"
                   ? "Upload both images to see the estimated change, affected area and severity."
+                  : mode === "timelapse"
+                  ? "Upload dated snapshots to see the change trajectory across time."
                   : "Results will appear here after inference."}
               </p>
             )}
@@ -556,7 +747,7 @@ function Analyze() {
             {/* ERROR */}
 
             {status === "error" && (
-              <div className="mt-7 rounded-lg border border-red-900/70 bg-red-950/30 p-4 text-sm text-red-300">
+              <div className="mt-7 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
                 {result?.message}
               </div>
             )}
@@ -565,11 +756,11 @@ function Analyze() {
 
             {status === "processing" && (
               <div className="mt-7 space-y-3">
-                <div className="h-2 animate-pulse rounded-full bg-emerald-900/70" />
+                <div className="h-2 animate-pulse rounded-full bg-emerald-200" />
 
-                <div className="h-2 w-4/5 animate-pulse rounded-full bg-gray-800" />
+                <div className="h-2 w-4/5 animate-pulse rounded-full bg-gray-100" />
 
-                <div className="h-2 w-3/5 animate-pulse rounded-full bg-gray-800" />
+                <div className="h-2 w-3/5 animate-pulse rounded-full bg-gray-100" />
               </div>
             )}
 
@@ -579,7 +770,7 @@ function Analyze() {
               <div className="mt-6">
                 <p className="text-sm text-gray-500">{result.title}</p>
 
-                <p className="mt-1.5 text-2xl font-semibold text-emerald-400">
+                <p className="mt-1.5 text-2xl font-semibold text-emerald-700">
                   {result.value}
                 </p>
 
@@ -587,7 +778,7 @@ function Analyze() {
 
                 {mode === "change" && beforePreview && afterPreview && (
                   <div className="mt-5 grid grid-cols-2 gap-2">
-                    <div className="overflow-hidden rounded-lg border border-[#26342c]">
+                    <div className="overflow-hidden rounded-lg border border-[#dbe4de]">
                       <img
                         src={beforePreview}
                         alt="Before comparison"
@@ -599,7 +790,7 @@ function Analyze() {
                       </p>
                     </div>
 
-                    <div className="overflow-hidden rounded-lg border border-[#26342c]">
+                    <div className="overflow-hidden rounded-lg border border-[#dbe4de]">
                       <img
                         src={afterPreview}
                         alt="After comparison"
@@ -613,9 +804,33 @@ function Analyze() {
                   </div>
                 )}
 
+                {/* TIME-LAPSE THUMBNAIL STRIP */}
+
+                {mode === "timelapse" && snapshots.length > 0 && (
+                  <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
+                    {snapshots.map((s, idx) => (
+                      <div
+                        key={idx}
+                        className={`shrink-0 overflow-hidden rounded-lg border ${
+                          idx === slider ? "border-emerald-600" : "border-[#dbe4de]"
+                        }`}
+                      >
+                        <img
+                          src={s.preview}
+                          alt={s.date}
+                          className="h-16 w-24 object-cover"
+                        />
+                        <p className="px-1.5 py-1 text-center text-[9px] text-gray-500">
+                          {s.date}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* RESULT DETAILS */}
 
-                <div className="mt-5 divide-y divide-[#26342c] rounded-lg border border-[#26342c] bg-[#080c0a]">
+                <div className="mt-5 divide-y divide-[#dbe4de] rounded-lg border border-[#dbe4de] bg-[#f6f9f7]">
                   {result.details.map(([label, value]) => (
                     <div
                       key={label}
@@ -623,14 +838,14 @@ function Analyze() {
                     >
                       <span className="text-sm text-gray-500">{label}</span>
 
-                      <span className="text-sm font-medium text-gray-200">
+                      <span className="text-sm font-medium text-gray-800">
                         {value}
                       </span>
                     </div>
                   ))}
                 </div>
 
-                <p className="mt-4 text-xs leading-5 text-gray-600">
+                <p className="mt-4 text-xs leading-5 text-gray-400">
                   Demo frontend inference. Connect{" "}
                   <code className="mx-1 text-gray-500">handleAnalyze()</code> to
                   your ML/API response.
