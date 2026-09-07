@@ -11,10 +11,7 @@ import {
   Tooltip,
 } from "recharts";
 
-
-// ============================================================
 // REGIONS
-// ============================================================
 
 const REGIONS = [
   "Bandhavgarh Belt",
@@ -24,10 +21,7 @@ const REGIONS = [
   "Western Ghats Reserve",
 ];
 
-
-// ============================================================
 // REGION DATA
-// ============================================================
 
 const REGION_DATA = {
   "Bandhavgarh Belt": [
@@ -86,37 +80,30 @@ const REGION_DATA = {
   ],
 };
 
-
-// ============================================================
 // TRENDS PAGE
-// ============================================================
 
 function Trends() {
-  const [selectedRegion, setSelectedRegion] =
-    useState("Bandhavgarh Belt");
+  const [selectedRegion, setSelectedRegion] = useState("Bandhavgarh Belt");
 
   const data = REGION_DATA[selectedRegion];
 
   return (
-    <div className="min-h-screen bg-[#080c0a] px-6 py-6 text-white lg:px-8">
+    <div className="min-h-screen bg-[#f6f9f7] px-6 py-6 text-gray-900 lg:px-8">
       <div className="mx-auto max-w-[1400px]">
-
         {/* =====================================================
             PAGE HEADER
         ===================================================== */}
 
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          <h1 className="text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
             Loss trends
           </h1>
 
-          <p className="mt-2 text-base text-[#8ca59b]">
+          <p className="mt-2 text-base text-[#4b6357]">
             Monthly forest loss and affected area per monitored region
           </p>
         </div>
 
-
-        {/*
         <div className="mt-6 flex flex-wrap gap-2.5">
           {REGIONS.map((region) => {
             const active = selectedRegion === region;
@@ -128,8 +115,8 @@ function Trends() {
                 onClick={() => setSelectedRegion(region)}
                 className={`rounded-full border px-3 py-1.5 text-sm transition-all ${
                   active
-                    ? "border-emerald-700 bg-[#287657] text-white"
-                    : "border-[#26342c] bg-transparent text-[#8ca59b] hover:border-[#3a5146] hover:text-white"
+                    ? "border-emerald-700 bg-emerald-700 text-white"
+                    : "border-[#dbe4de] bg-transparent text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
                 }`}
               >
                 {region}
@@ -137,17 +124,10 @@ function Trends() {
             );
           })}
         </div>
-        */}
 
-
-        {/*
         <div className="mt-6 grid gap-5 xl:grid-cols-2">
-
-
-
-          <div className="rounded-xl border border-[#26342c] bg-[#101713] p-5 sm:p-6">
-
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#91aaa0]">
+          <div className="rounded-xl border border-[#dbe4de] bg-[#ffffff] p-5 sm:p-6">
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#4e6459]">
               Forest loss % over time
             </p>
 
@@ -162,23 +142,19 @@ function Trends() {
                     bottom: 10,
                   }}
                 >
-
-                  <CartesianGrid
-                    horizontal={false}
-                    vertical={false}
-                  />
+                  <CartesianGrid horizontal={false} vertical={false} />
 
                   <XAxis
                     dataKey="month"
                     tick={{
-                      fill: "#71877e",
+                      fill: "#6b7d74",
                       fontSize: 12,
                     }}
                     axisLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                     tickLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                   />
 
@@ -186,26 +162,26 @@ function Trends() {
                     domain={[0, 12]}
                     ticks={[0, 3, 6, 9, 12]}
                     tick={{
-                      fill: "#71877e",
+                      fill: "#6b7d74",
                       fontSize: 12,
                     }}
                     axisLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                     tickLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                   />
 
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#101713",
-                      border: "1px solid #304037",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #c9d6cd",
                       borderRadius: "8px",
-                      color: "#fff",
+                      color: "#0b120e",
                     }}
                     labelStyle={{
-                      color: "#8ca59b",
+                      color: "#4b6357",
                     }}
                     formatter={(value) => [`${value}%`, "Loss"]}
                   />
@@ -217,7 +193,7 @@ function Trends() {
                     strokeWidth={3}
                     dot={{
                       r: 3,
-                      fill: "#101713",
+                      fill: "#ffffff",
                       stroke: "#3b996e",
                       strokeWidth: 2,
                     }}
@@ -226,11 +202,9 @@ function Trends() {
                       fill: "#3b996e",
                     }}
                   />
-
                 </LineChart>
               </ResponsiveContainer>
             </div>
-
 
             <div className="flex justify-center">
               <div className="flex items-center gap-2 text-sm text-[#3b996e]">
@@ -238,13 +212,10 @@ function Trends() {
                 Loss %
               </div>
             </div>
-
           </div>
 
-
-          <div className="rounded-xl border border-[#26342c] bg-[#101713] p-5 sm:p-6">
-
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#91aaa0]">
+          <div className="rounded-xl border border-[#dbe4de] bg-[#ffffff] p-5 sm:p-6">
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#4e6459]">
               Affected area (ha) & alert volume
             </p>
 
@@ -259,23 +230,19 @@ function Trends() {
                     bottom: 10,
                   }}
                 >
-
-                  <CartesianGrid
-                    horizontal={false}
-                    vertical={false}
-                  />
+                  <CartesianGrid horizontal={false} vertical={false} />
 
                   <XAxis
                     dataKey="month"
                     tick={{
-                      fill: "#71877e",
+                      fill: "#6b7d74",
                       fontSize: 12,
                     }}
                     axisLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                     tickLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                   />
 
@@ -283,34 +250,30 @@ function Trends() {
                     domain={[0, 600]}
                     ticks={[0, 150, 300, 450, 600]}
                     tick={{
-                      fill: "#71877e",
+                      fill: "#6b7d74",
                       fontSize: 12,
                     }}
                     axisLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                     tickLine={{
-                      stroke: "#52675d",
+                      stroke: "#a9bab0",
                     }}
                   />
 
                   <Tooltip
                     contentStyle={{
-                      backgroundColor: "#101713",
-                      border: "1px solid #304037",
+                      backgroundColor: "#ffffff",
+                      border: "1px solid #c9d6cd",
                       borderRadius: "8px",
-                      color: "#fff",
+                      color: "#0b120e",
                     }}
                     labelStyle={{
-                      color: "#8ca59b",
+                      color: "#4b6357",
                     }}
                     formatter={(value, name) => [
-                      name === "area"
-                        ? `${value} ha`
-                        : value,
-                      name === "area"
-                        ? "Hectares"
-                        : "Alerts",
+                      name === "area" ? `${value} ha` : value,
+                      name === "area" ? "Hectares" : "Alerts",
                     ]}
                   />
 
@@ -320,13 +283,11 @@ function Trends() {
                     radius={[4, 4, 0, 0]}
                     barSize={25}
                   />
-
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
             <div className="flex justify-center gap-6">
-
               <div className="flex items-center gap-2 text-sm text-red-400">
                 <span className="h-3 w-3 bg-red-500" />
                 Alerts
@@ -336,19 +297,12 @@ function Trends() {
                 <span className="h-3 w-3 bg-amber-500" />
                 Hectares
               </div>
-
             </div>
-
           </div>
-
         </div>
-        */}
-
-
       </div>
     </div>
   );
 }
-
 
 export default Trends;
