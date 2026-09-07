@@ -52,14 +52,14 @@ function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080c0a] text-white">
+    <div className="min-h-screen bg-[#f6f9f7] text-gray-900">
 
       {/* SIDEBAR */}
-      <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-[#202b25] bg-[#0b100d]">
+      <aside className="fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-[#e2e8e4] bg-[#ffffff]">
 
         {/* LOGO */}
         <Link to="/dashboard/alerts">
-        <div className="flex h-[72px] items-center gap-3 border-b border-[#202b25] px-5">
+        <div className="flex h-[72px] items-center gap-3 border-b border-[#e2e8e4] px-5">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
             <Leaf size={19} />
           </div>
@@ -95,7 +95,7 @@ function Dashboard() {
                     `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
                       isActive
                         ? "bg-emerald-700 text-white shadow-sm"
-                        : "text-gray-400 hover:bg-[#101713] hover:text-white"
+                        : "text-gray-500 hover:bg-[#f0f4f1] hover:text-gray-900"
                     }`
                   }
                 >
@@ -108,24 +108,24 @@ function Dashboard() {
         </nav>
 
         {/* PROFILE + SIGN OUT */}
-        <div className="border-t border-[#202b25] p-3">
+        <div className="border-t border-[#e2e8e4] p-3">
 
           {/* PROFILE BUTTON */}
           <button
             type="button"
             onClick={() => navigate("/dashboard/profile")}
-            className="group mb-2 flex w-full items-center gap-3 rounded-lg border border-[#26342c] bg-[#101713] p-3 text-left transition hover:border-emerald-800 hover:bg-[#141d18]"
+            className="group mb-2 flex w-full items-center gap-3 rounded-lg border border-[#dbe4de] bg-[#ffffff] p-3 text-left transition hover:border-emerald-800 hover:bg-[#f0f4f1]"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#304037] bg-emerald-950/40">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#c9d6cd] bg-emerald-100">
               <User
                 size={16}
-                className="text-emerald-400"
+                className="text-emerald-700"
               />
             </div>
 
             <div className="min-w-0 flex-1">
 
-              <p className="truncate text-sm text-gray-200">
+              <p className="truncate text-sm text-gray-800">
                 {user.name || "Forest Official"}
               </p>
 
@@ -137,13 +137,13 @@ function Dashboard() {
 
             <ChevronRight
               size={15}
-              className="shrink-0 text-gray-600 transition group-hover:translate-x-0.5 group-hover:text-emerald-400"
+              className="shrink-0 text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-emerald-600"
             />
           </button>
 
           {/* ROLE */}
           <div className="px-3 pb-2">
-            <p className="text-[9px] uppercase tracking-[0.2em] text-emerald-500">
+            <p className="text-[9px] uppercase tracking-[0.2em] text-emerald-600">
               {user.role || "Official"}
             </p>
           </div>
@@ -152,7 +152,7 @@ function Dashboard() {
           <button
             type="button"
             onClick={signOut}
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-500 transition hover:bg-[#101713] hover:text-white"
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-gray-500 transition hover:bg-[#f0f4f1] hover:text-gray-900"
           >
             <LogOut size={17} />
             Sign Out
