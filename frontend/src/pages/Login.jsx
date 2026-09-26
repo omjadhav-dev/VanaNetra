@@ -1,124 +1,290 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Leaf, ShieldCheck } from "lucide-react";
+import {
+  Leaf,
+  ShieldCheck,
+  ArrowRight,
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+import { api, setSession } from "../lib/api";
 
-function Login() {
+export default function Login() {
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
 
-  const handleSubmit = (e) => {
+  const [form, setForm] = useState({
+    email: "",
+    password: "",
+  });
+
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const submit = async (e) => {
     e.preventDefault();
+
+    setLoading(true);
     setError("");
 
-    if (!email || !password) {
-      setError("Email and password are required.");
-      return;
+    try {
+      const data = await api("/auth/login", {
+        method: "POST",
+        body: form,
+      });
+
+      setSession(data);
+
+      if (data.user.role === "Public") {
+        navigate("/");
+      } else {
+        navigate("/dashboard");
+      }
+    } catch (error) {
+      setError(error.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
-
-    localStorage.setItem(
-      "forestwatch_user",
-      JSON.stringify({ email, role: "Official" }),
-    );
-
-    navigate("/dashboard/alerts");
   };
 
   return (
-    <div className="grid min-h-screen bg-[#f6f9f7] text-gray-900 md:grid-cols-2">
-      <div className="hidden flex-col justify-between border-r border-[#dbe4de] bg-gradient-to-br from-emerald-700 to-emerald-900 p-10 text-white lg:p-14 md:flex">
-        <Link to="/" className="flex items-center gap-3">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
-            <Leaf size={19} />
-          </span>
-          <span className="font-semibold text-white">VanaNetra</span>
-        </Link>
+    <div className="min-h-screen bg-[#f6f9f7] text-gray-900 flex items-center justify-center p-6">
+      <div className="w-full max-w-5xl overflow-hidden rounded-2xl border border-[#dbe4de] bg-white shadow-xl grid lg:grid-cols-2">
 
-        <div className="max-w-xl">
-          <span className="inline-flex items-center gap-2 rounded-full border border-white/30 px-3 py-1.5 text-xs text-emerald-50">
-            <ShieldCheck size={14} className="text-emerald-200" />
-            Official Access
-          </span>
+        {/* LEFT SIDE */}
 
-          <h1 className="mt-5 text-3xl font-semibold leading-tight lg:text-5xl">
-            Operations access for forestry officials.
-          </h1>
+        <div className="relative hidden lg:flex min-h-[620px] flex-col justify-between overflow-hidden bg-gradient-to-br from-[#064e3b] via-[#047857] to-[#065f46] p-10 text-white">
 
-          <p className="mt-5 max-w-lg leading-7 text-emerald-50/90">
-            Live deforestation alerts, region severity maps, loss trends and
-            downloadable audit reports.
-          </p>
-        </div>
+          {/* CLICKABLE LOGO */}
 
-        <p className="text-xs uppercase tracking-[0.24em] text-emerald-100/70">
-          Restricted system · Activity is logged
-        </p>
-      </div>
+          <Link
+            to="/"
+            className="relative z-10 flex items-center gap-3 w-fit"
+          >
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/15 border border-white/20">
+              <Leaf size={22} />
+            </div>
 
-      <div className="flex items-center justify-center bg-[#f6f9f7] px-6 py-12 sm:px-12">
-        <div className="w-full max-w-md rounded-2xl border border-[#dbe4de] bg-[#ffffff] p-7 sm:p-9">
-          <div className="mb-8">
-            <p className="text-xs uppercase tracking-[0.22em] text-emerald-600">
-              Officials Console
+            <div>
+              <p className="text-lg font-semibold">
+                VanaNetra
+              </p>
+
+              <p className="text-[10px] uppercase tracking-[0.2em] text-emerald-100">
+                AI-Powered Forest Protection
+              </p>
+            </div>
+          </Link>
+
+          {/* CONTENT */}
+
+          <div className="relative z-10">
+
+            <p className="text-sm font-medium uppercase tracking-[0.25em] text-emerald-200">
+              Official Access
             </p>
-            <h2 className="mt-3 text-3xl font-semibold text-gray-900">Sign in</h2>
-            <p className="mt-2 text-sm text-gray-500">
-              Use your official credentials.
+
+            <h1 className="mt-4 max-w-md text-4xl font-semibold leading-tight">
+              Smarter Detection.
+              <br />
+
+              <span className="text-emerald-200">
+                Greener Tomorrow.
+              </span>
+            </h1>
+
+            <p className="mt-5 max-w-md text-sm leading-6 text-emerald-50/90">
+              Monitor forest loss, verify satellite detections,
+              and maintain an auditable response workflow.
             </p>
+
           </div>
 
-          {error && (
-            <div className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600">
-              {error}
-            </div>
-          )}
+          {/* FOOTER */}
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <div>
-              <label className="mb-2 block text-xs font-semibold tracking-[0.16em] text-gray-500">
-                EMAIL
-              </label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="official@example.com"
-                className="w-full rounded-lg border border-[#c9d6cd] bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-600"
-              />
-            </div>
+          <div className="relative z-10 flex items-center gap-2 text-xs text-emerald-100">
+            <ShieldCheck size={16} />
+
+            Restricted operations console
+          </div>
+
+        </div>
+
+        {/* RIGHT SIDE */}
+
+        <div className="flex items-center justify-center p-7 sm:p-10">
+
+          <form
+            onSubmit={submit}
+            className="w-full max-w-md"
+          >
+
+            {/* MOBILE LOGO */}
+
+            <Link
+              to="/"
+              className="flex items-center gap-2 text-emerald-700 mb-8 lg:hidden w-fit"
+            >
+              <Leaf size={22} />
+
+              <span className="font-semibold">
+                VanaNetra
+              </span>
+            </Link>
+
+            {/* HEADING */}
 
             <div>
-              <label className="mb-2 block text-xs font-semibold tracking-[0.16em] text-gray-500">
-                PASSWORD
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                className="w-full rounded-lg border border-[#c9d6cd] bg-white px-4 py-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-600"
-              />
+
+              <p className="text-sm font-medium uppercase tracking-[0.18em] text-emerald-700">
+                Official Access
+              </p>
+
+              <h2 className="mt-2 text-3xl font-semibold text-gray-900">
+                Welcome Back
+              </h2>
+
+              <p className="mt-2 text-sm text-gray-500">
+                Sign in to your VanaNetra account.
+              </p>
+
             </div>
+
+            {/* ERROR */}
+
+            {error && (
+              <div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                {error}
+              </div>
+            )}
+
+            {/* EMAIL */}
+
+            <label className="block mt-7 text-sm font-medium text-gray-700">
+
+              Email Address
+
+              <div className="relative mt-2">
+
+                <Mail
+                  size={17}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600"
+                />
+
+                <input
+                  type="email"
+                  required
+                  placeholder="Enter your email"
+                  value={form.email}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      email: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-xl border border-[#dbe4de] bg-white py-3 pl-11 pr-4 text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                />
+
+              </div>
+
+            </label>
+
+            {/* PASSWORD */}
+
+            <label className="block mt-5 text-sm font-medium text-gray-700">
+
+              Password
+
+              <div className="relative mt-2">
+
+                <Lock
+                  size={17}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-emerald-600"
+                />
+
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required
+                  placeholder="Enter your password"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      password: e.target.value,
+                    })
+                  }
+                  className="w-full rounded-xl border border-[#dbe4de] bg-white py-3 pl-11 pr-11 text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+                />
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowPassword(!showPassword)
+                  }
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-emerald-700"
+                >
+                  {showPassword ? (
+                    <EyeOff size={17} />
+                  ) : (
+                    <Eye size={17} />
+                  )}
+                </button>
+
+              </div>
+
+            </label>
+
+            {/* LOGIN BUTTON */}
 
             <button
               type="submit"
-              className="w-full rounded-lg bg-emerald-700 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600"
+              disabled={loading}
+              className="mt-7 w-full rounded-xl bg-emerald-700 py-3.5 font-medium text-white transition hover:bg-emerald-800 disabled:opacity-50"
             >
-              Sign in
+
+              {loading
+                ? "Signing in..."
+                : "Sign In"}
+
+              <ArrowRight
+                className="ml-2 inline"
+                size={17}
+              />
+
             </button>
+
+            {/* REGISTER */}
+
+            <p className="mt-6 text-center text-sm text-gray-500">
+
+              Don't have an account?{" "}
+
+              <Link
+                to="/register"
+                className="font-medium text-emerald-700 hover:text-emerald-800"
+              >
+                Register
+              </Link>
+
+            </p>
+
+            {/* FOOTER */}
+
+            <div className="mt-8 border-t border-[#e2e8e4] pt-5 text-center">
+
+              <p className="text-xs text-gray-400">
+                VanaNetra Forest Monitoring System
+              </p>
+
+            </div>
+
           </form>
 
-          <p className="mt-6 text-center text-sm text-gray-500">
-            No account?{" "}
-            <Link to="/register" className="font-medium text-emerald-600 hover:text-emerald-700">
-              Register
-            </Link>
-          </p>
         </div>
+
       </div>
     </div>
   );
 }
-
-export default Login;
