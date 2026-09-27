@@ -1,4 +1,5 @@
 import { useRef, useState } from "react";
+import { api } from "../lib/api";
 import { Link, useLocation } from "react-router-dom";
 import {
   UploadCloud,
@@ -10,14 +11,29 @@ import {
   LoaderCircle,
   Images,
   Leaf,
-  History,
-  Plus,
+  AlertTriangle,
+  Download,
+  TreePine,
+  BarChart3,
+  Target,
 } from "lucide-react";
+
+function severityColor(pct) {
+  if (pct > 30) return "text-red-600";
+  if (pct > 15) return "text-orange-500";
+  if (pct > 5) return "text-yellow-600";
+  return "text-emerald-600";
+}
+
+function severityLabel(pct) {
+  if (pct > 30) return "Critical";
+  if (pct > 15) return "High";
+  if (pct > 5) return "Medium";
+  return "Low";
+}
 
 function Analyze() {
   const location = useLocation();
-
-  // Automatically detect whether Analyze is opened from official dashboard
   const isOfficial = location.pathname.startsWith("/dashboard");
 
   const [mode, setMode] = useState("landcover");
@@ -32,17 +48,15 @@ function Analyze() {
   const [afterImage, setAfterImage] = useState(null);
   const [afterPreview, setAfterPreview] = useState(null);
 
-  // TIME-LAPSE: ordered list of { file, preview, date }
-  const [snapshots, setSnapshots] = useState([]);
-  const [slider, setSlider] = useState(0);
-
   const [status, setStatus] = useState("idle");
   const [result, setResult] = useState(null);
+  const [alertId, setAlertId] = useState(null);
+
+  const [reportStatus, setReportStatus] = useState("idle");
 
   const fileInputRef = useRef(null);
   const beforeInputRef = useRef(null);
   const afterInputRef = useRef(null);
-  const snapshotInputRef = useRef(null);
 
   const regions = [
     "Bandhavgarh Belt",
@@ -51,10 +65,6 @@ function Analyze() {
     "Sundarbans Delta",
     "Western Ghats Reserve",
   ];
-
-
-  // SINGLE IMAGE UPLOAD
-
 
   const handleFile = (file) => {
     if (!file) return;
@@ -71,17 +81,11 @@ function Analyze() {
       URL.revokeObjectURL(preview);
     }
 
-    const imageUrl = URL.createObjectURL(file);
-
     setImage(file);
-    setPreview(imageUrl);
+    setPreview(URL.createObjectURL(file));
     setResult(null);
     setStatus("idle");
   };
-
-
-  // BEFORE / AFTER UPLOAD
-
 
   const handleComparisonFile = (file, side) => {
     if (!file) return;
@@ -116,59 +120,8 @@ function Analyze() {
     setStatus("idle");
   };
 
-
-  // TIME-LAPSE UPLOAD (multiple snapshots, chronologically ordered)
-
-
-  const handleSnapshotFiles = (fileList) => {
-    const files = Array.from(fileList || []).filter((f) =>
-      f.type.startsWith("image/")
-    );
-
-    if (files.length === 0) return;
-
-    const additions = files.map((file, idx) => ({
-      file,
-      preview: URL.createObjectURL(file),
-      // Demo dates: assumes files are added in chronological order,
-      // spaced two months apart from today backwards.
-      date: new Date(
-        Date.now() - (files.length - idx) * 60 * 24 * 60 * 60 * 1000
-      ).toISOString().slice(0, 10),
-    }));
-
-    setSnapshots((current) => {
-      const merged = [...current, ...additions];
-      setSlider(merged.length - 1);
-      return merged;
-    });
-
-    setResult(null);
-    setStatus("idle");
-  };
-
-  const removeSnapshot = (idx) => {
-    setSnapshots((current) => {
-      const target = current[idx];
-      if (target?.preview) URL.revokeObjectURL(target.preview);
-
-      const next = current.filter((_, i) => i !== idx);
-      setSlider((s) => Math.min(s, Math.max(next.length - 1, 0)));
-      return next;
-    });
-  };
-
-
-  // DRAG & DROP
-
-
   const handleDrop = (e, side = "single") => {
     e.preventDefault();
-
-    if (side === "timelapse") {
-      handleSnapshotFiles(e.dataTransfer.files);
-      return;
-    }
 
     const file = e.dataTransfer.files?.[0];
 
@@ -178,10 +131,6 @@ function Analyze() {
       handleComparisonFile(file, side);
     }
   };
-
-
-  // CLEAR SINGLE IMAGE
-
 
   const clearImage = (e) => {
     e?.stopPropagation();
@@ -199,9 +148,6 @@ function Analyze() {
       fileInputRef.current.value = "";
     }
   };
-
-  // CLEAR BEFORE / AFTER IMAGE
-
 
   const clearComparisonImage = (side, e) => {
     e?.stopPropagation();
@@ -234,101 +180,122 @@ function Analyze() {
     setStatus("idle");
   };
 
-  // MODE SELECTION
-
-
-  const selectMode = (nextMode) => {
-    setMode(nextMode);
+  const selectMode = (m) => {
+    setMode(m);
     setResult(null);
     setStatus("idle");
+    setReportStatus("idle");
+    setAlertId(null);
   };
 
-  // ANALYSIS
-
-
-  const handleAnalyze = () => {
+  const handleAnalyze = async () => {
     if (mode === "landcover" && !image) {
-      setStatus("error");
-
-      setResult({
-        message: "Upload a satellite image before starting analysis.",
-      });
-
       return;
     }
 
     if (mode === "change" && (!beforeImage || !afterImage)) {
+      return;
+    }
+
+    setStatus("analyzing");
+    setResult(null);
+    setReportStatus("idle");
+    setAlertId(null);
+
+    try {
+      const form = new FormData();
+
+      form.append("mode", mode);
+
+      if (region) {
+        form.append("region", region);
+      }
+
+      if (image) {
+        form.append("image", image);
+      }
+
+      if (beforeImage) {
+        form.append("before", beforeImage);
+      }
+
+      if (afterImage) {
+        form.append("after", afterImage);
+      }
+
+      const data = await api("/analysis", {
+        method: "POST",
+        body: form,
+        form: true,
+      });
+
+      setResult(data.result);
+      setAlertId(data.alertId || null);
+      setStatus("done");
+    } catch (e) {
       setStatus("error");
 
       setResult({
         message:
-          "Upload both the before and after satellite images to detect changes.",
+          e.message || "Analysis failed. Make sure the AI service is running.",
       });
-
-      return;
     }
-
-    if (mode === "timelapse" && snapshots.length < 2) {
-      setStatus("error");
-
-      setResult({
-        message: "Upload at least two dated snapshots to build a time-lapse.",
-      });
-
-      return;
-    }
-
-    setStatus("processing");
-    setResult(null);
-
-    // Demo inference
-    window.setTimeout(() => {
-      setStatus("complete");
-
-      if (mode === "landcover") {
-        setResult({
-          title: "Classification complete",
-          value: "Forest dominant",
-          details: [
-            ["Forest", "61%"],
-            ["Agriculture", "18%"],
-            ["Barren", "9%"],
-            ["Water", "7%"],
-            ["Urban", "5%"],
-          ],
-        });
-      } else if (mode === "change") {
-        setResult({
-          title: "Before / after comparison complete",
-          value: "10.81% estimated loss",
-          details: [
-            ["Affected area", "184.2 ha"],
-            ["Severity score", "21.6"],
-            ["Confidence", "94%"],
-            ["Region", region || "Default"],
-          ],
-        });
-      } else {
-        const span = snapshots.length;
-        setResult({
-          title: "Time-lapse change trajectory complete",
-          value: `${span} snapshots analyzed`,
-          details: [
-            ["Span", `${snapshots[0]?.date} → ${snapshots[span - 1]?.date}`],
-            ["Cumulative loss", "14.6%"],
-            ["Fastest-loss interval", `${snapshots[Math.max(span - 2, 0)]?.date} → ${snapshots[span - 1]?.date}`],
-            ["Region", region || "Default"],
-          ],
-        });
-      }
-    }, 1000);
   };
 
-  // BEFORE / AFTER UPLOAD BOX
+  const handleGenerateReport = async () => {
+    if (!result) {
+      return;
+    }
 
-  const UploadBox = ({ side, file, preview: sidePreview, inputRef }) => {
-    const isBefore = side === "before";
-    const label = isBefore ? "Before image" : "After image";
+    setReportStatus("generating");
+
+    try {
+      const payload = {
+        classification: "Restricted",
+        analysisResult: result,
+        alertId,
+        periodStart: new Date(
+          Date.now() - 30 * 86400000
+        ).toISOString(),
+        periodEnd: new Date().toISOString(),
+      };
+
+      const data = await api("/reports/generate", {
+        method: "POST",
+        body: payload,
+      });
+
+      const blob = await api(
+        `/reports/${data.report._id}/download`
+      );
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = url;
+      link.download = `${data.report.reportId}.pdf`;
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.URL.revokeObjectURL(url);
+
+      setReportStatus("done");
+    } catch (error) {
+      console.error(error);
+      setReportStatus("error");
+    }
+  };
+
+  const UploadBox = ({
+    side,
+    file,
+    preview: sidePreview,
+    inputRef,
+  }) => {
+    const label =
+      side === "before" ? "Before image" : "After image";
 
     return (
       <div
@@ -341,7 +308,7 @@ function Analyze() {
           <>
             <img
               src={sidePreview}
-              alt={`${label} satellite imagery`}
+              alt={label}
               className="absolute inset-0 h-full w-full object-cover"
             />
 
@@ -353,14 +320,18 @@ function Analyze() {
 
             <button
               type="button"
-              onClick={(e) => clearComparisonImage(side, e)}
+              onClick={(e) =>
+                clearComparisonImage(side, e)
+              }
               className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/55 text-gray-200 hover:bg-white/10"
             >
               <X size={15} />
             </button>
 
             <div className="absolute bottom-0 left-0 right-0 bg-black/70 px-4 py-3 backdrop-blur">
-              <p className="truncate text-xs text-white">{file.name}</p>
+              <p className="truncate text-xs text-white">
+                {file.name}
+              </p>
             </div>
           </>
         ) : (
@@ -369,7 +340,9 @@ function Analyze() {
               <UploadCloud size={24} />
             </div>
 
-            <p className="text-base font-medium text-gray-900">{label}</p>
+            <p className="text-base font-medium text-gray-900">
+              {label}
+            </p>
 
             <p className="mt-1.5 text-xs text-gray-500">
               Drop or click to upload
@@ -381,33 +354,37 @@ function Analyze() {
           ref={inputRef}
           type="file"
           accept="image/png,image/jpeg,image/jpg"
-          onChange={(e) => handleComparisonFile(e.target.files?.[0], side)}
+          onChange={(e) =>
+            handleComparisonFile(
+              e.target.files?.[0],
+              side
+            )
+          }
           className="hidden"
         />
       </div>
     );
   };
 
-  const activeSnapshot = snapshots[slider];
-
   return (
     <div className="min-h-screen bg-[#f6f9f7] px-6 py-10 text-gray-900 sm:py-12">
       <div className="mx-auto max-w-7xl">
-        {/* PUBLIC LOGO ONLY */}
         {!isOfficial && (
           <Link to="/" className="mb-6 flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
               <Leaf size={19} className="text-white" />
             </span>
 
-            <span className="font-semibold text-gray-900">VanaNetra</span>
+            <span className="font-semibold text-gray-900">
+              VanaNetra
+            </span>
           </Link>
         )}
 
-        {/* PAGE HEADING */}
-
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-emerald-600">
-          {isOfficial ? "Official Analysis Console" : "Public Analysis Console"}
+          {isOfficial
+            ? "Official Analysis Console"
+            : "Public Analysis Console"}
         </p>
 
         <h1 className="mt-3 text-4xl font-semibold tracking-tight text-gray-900 sm:text-5xl">
@@ -415,54 +392,40 @@ function Analyze() {
         </h1>
 
         <p className="mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-          Upload satellite imagery to classify land cover, compare two dates for
-          change detection, or scrub through a multi-date time-lapse.
+          Upload satellite imagery to classify land cover or
+          detect deforestation between two dates.
+          {isOfficial &&
+            " Government officials can generate a downloadable PDF report from any analysis."}
         </p>
 
-        {/* ANALYSIS MODE */}
-
         <div className="mt-6 flex flex-wrap gap-2.5">
-          <button
-            type="button"
-            onClick={() => selectMode("landcover")}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
-              mode === "landcover"
-                ? "border-emerald-600 bg-emerald-700 text-white"
-                : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
-            }`}
-          >
-            <UploadCloud size={17} />
-            Land cover
-          </button>
-
-          <button
-            type="button"
-            onClick={() => selectMode("change")}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
-              mode === "change"
-                ? "border-emerald-600 bg-emerald-700 text-white"
-                : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
-            }`}
-          >
-            <GitCompareArrows size={17} />
-            Change detection
-          </button>
-
-          <button
-            type="button"
-            onClick={() => selectMode("timelapse")}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
-              mode === "timelapse"
-                ? "border-emerald-600 bg-emerald-700 text-white"
-                : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
-            }`}
-          >
-            <History size={17} />
-            Time-lapse
-          </button>
+          {[
+            {
+              id: "landcover",
+              icon: <UploadCloud size={17} />,
+              label: "Land cover",
+            },
+            {
+              id: "change",
+              icon: <GitCompareArrows size={17} />,
+              label: "Change detection",
+            },
+          ].map(({ id, icon, label }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => selectMode(id)}
+              className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-medium transition ${
+                mode === id
+                  ? "border-emerald-600 bg-emerald-700 text-white"
+                  : "border-[#c9d6cd] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
+              }`}
+            >
+              {icon}
+              {label}
+            </button>
+          ))}
         </div>
-
-        {/* REGION */}
 
         <div className="mt-7">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-gray-500">
@@ -474,7 +437,11 @@ function Analyze() {
               <button
                 key={item}
                 type="button"
-                onClick={() => setRegion(region === item ? "" : item)}
+                onClick={() =>
+                  setRegion(
+                    region === item ? "" : item
+                  )
+                }
                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition ${
                   region === item
                     ? "border-emerald-600 bg-emerald-700 text-white"
@@ -488,24 +455,22 @@ function Analyze() {
           </div>
         </div>
 
-        {/* MAIN CONTENT */}
-
         <div className="mt-7 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          {/* LEFT SIDE */}
-
           <div>
             {mode === "landcover" && (
               <div
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDrop(e)}
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() =>
+                  fileInputRef.current?.click()
+                }
                 className="relative flex min-h-[300px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#c9d6cd] bg-white transition hover:border-emerald-600"
               >
                 {preview ? (
                   <>
                     <img
                       src={preview}
-                      alt="Uploaded satellite imagery"
+                      alt="Satellite"
                       className="absolute inset-0 h-full w-full object-cover"
                     />
 
@@ -545,7 +510,9 @@ function Analyze() {
                   ref={fileInputRef}
                   type="file"
                   accept="image/png,image/jpeg,image/jpg"
-                  onChange={(e) => handleFile(e.target.files?.[0])}
+                  onChange={(e) =>
+                    handleFile(e.target.files?.[0])
+                  }
                   className="hidden"
                 />
               </div>
@@ -560,11 +527,15 @@ function Analyze() {
                     </p>
 
                     <p className="mt-1 text-xs text-gray-500">
-                      Upload matching-area images from two dates.
+                      Upload matching-area images from two dates
+                      to detect vegetation loss.
                     </p>
                   </div>
 
-                  <Images size={19} className="text-emerald-600" />
+                  <Images
+                    size={19}
+                    className="text-emerald-600"
+                  />
                 </div>
 
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -585,117 +556,19 @@ function Analyze() {
               </div>
             )}
 
-            {mode === "timelapse" && (
-              <div className="rounded-xl border border-[#dbe4de] bg-white p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
-                      Time-lapse imagery
-                    </p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Upload multiple dated satellite snapshots of the same area.
-                    </p>
-                  </div>
-                  <History size={19} className="text-emerald-600" />
-                </div>
-
-                {snapshots.length === 0 ? (
-                  <div
-                    onDragOver={(e) => e.preventDefault()}
-                    onDrop={(e) => handleDrop(e, "timelapse")}
-                    onClick={() => snapshotInputRef.current?.click()}
-                    className="relative flex min-h-[280px] cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-dashed border-[#c9d6cd] bg-white transition hover:border-emerald-600"
-                  >
-                    <div className="text-center">
-                      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-700">
-                        <History size={26} />
-                      </div>
-                      <p className="text-lg font-medium text-gray-900">
-                        Drop 2 or more snapshots
-                      </p>
-                      <p className="mt-1.5 text-sm text-gray-500">
-                        Oldest to newest, same area
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="relative overflow-hidden rounded-xl border border-[#dbe4de] bg-black">
-                      <img
-                        src={activeSnapshot?.preview}
-                        alt={`Snapshot ${activeSnapshot?.date}`}
-                        className="h-[280px] w-full object-cover opacity-95"
-                      />
-
-                      <div className="absolute left-4 top-4 rounded-full border border-white/15 bg-black/55 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white backdrop-blur">
-                        {activeSnapshot?.date}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={() => removeSnapshot(slider)}
-                        className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full border border-white/20 bg-black/55 text-gray-200 hover:bg-white/10"
-                      >
-                        <X size={15} />
-                      </button>
-                    </div>
-
-                    {/* SCRUB SLIDER */}
-                    <div className="mt-4 px-1">
-                      <input
-                        type="range"
-                        min={0}
-                        max={Math.max(snapshots.length - 1, 0)}
-                        value={slider}
-                        onChange={(e) => setSlider(Number(e.target.value))}
-                        className="w-full accent-emerald-600"
-                      />
-                      <div className="mt-1.5 flex justify-between text-[11px] text-gray-500">
-                        {snapshots.map((s, idx) => (
-                          <span
-                            key={idx}
-                            className={idx === slider ? "font-semibold text-emerald-700" : ""}
-                          >
-                            {s.date}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => snapshotInputRef.current?.click()}
-                      className="mt-4 inline-flex items-center gap-2 rounded-lg border border-dashed border-[#c9d6cd] px-3 py-2 text-xs text-gray-500 transition hover:border-emerald-600 hover:text-gray-900"
-                    >
-                      <Plus size={14} />
-                      Add more snapshots
-                    </button>
-                  </>
-                )}
-
-                <input
-                  ref={snapshotInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/jpg"
-                  multiple
-                  onChange={(e) => handleSnapshotFiles(e.target.files)}
-                  className="hidden"
-                />
-              </div>
-            )}
-
-            {/* ANALYZE BUTTON */}
-
             <button
               type="button"
               onClick={handleAnalyze}
-              disabled={status === "processing"}
+              disabled={status === "analyzing"}
               className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-6 py-3 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {status === "processing" ? (
+              {status === "analyzing" ? (
                 <>
-                  <LoaderCircle size={17} className="animate-spin" />
-                  Running inference...
+                  <LoaderCircle
+                    size={17}
+                    className="animate-spin"
+                  />
+                  Running AI inference…
                 </>
               ) : (
                 <>
@@ -703,15 +576,11 @@ function Analyze() {
 
                   {mode === "landcover"
                     ? "Classify land cover"
-                    : mode === "change"
-                    ? "Compare before & after"
-                    : "Analyze time-lapse"}
+                    : "Compare before & after"}
                 </>
               )}
             </button>
           </div>
-
-          {/* RIGHT SIDE - RESULTS */}
 
           <div className="rounded-xl border border-[#dbe4de] bg-white p-6">
             <div className="flex items-center justify-between">
@@ -721,137 +590,388 @@ function Analyze() {
                 </p>
 
                 <h2 className="mt-1.5 text-lg font-semibold text-gray-900">
-                  {status === "processing"
-                    ? "Processing imagery"
+                  {status === "analyzing"
+                    ? "Running AI model…"
                     : "Inference output"}
                 </h2>
               </div>
 
-              {status === "complete" && (
-                <CheckCircle2 size={20} className="text-emerald-600" />
+              {status === "done" && (
+                <CheckCircle2
+                  size={20}
+                  className="text-emerald-600"
+                />
               )}
             </div>
-
-            {/* IDLE */}
 
             {status === "idle" && (
               <p className="mt-7 text-sm leading-6 text-gray-500">
                 {mode === "change"
-                  ? "Upload both images to see the estimated change, affected area and severity."
-                  : mode === "timelapse"
-                  ? "Upload dated snapshots to see the change trajectory across time."
-                  : "Results will appear here after inference."}
+                  ? "Upload a before and after image. The AI will highlight vegetation lost between the two dates."
+                  : "Upload a satellite image to classify land cover and measure vegetation coverage."}
               </p>
             )}
 
-            {/* ERROR */}
-
-            {status === "error" && (
-              <div className="mt-7 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-                {result?.message}
-              </div>
-            )}
-
-            {/* PROCESSING */}
-
-            {status === "processing" && (
+            {status === "analyzing" && (
               <div className="mt-7 space-y-3">
                 <div className="h-2 animate-pulse rounded-full bg-emerald-200" />
-
                 <div className="h-2 w-4/5 animate-pulse rounded-full bg-gray-100" />
-
                 <div className="h-2 w-3/5 animate-pulse rounded-full bg-gray-100" />
+
+                <p className="mt-4 text-xs text-gray-400">
+                  SegFormer semantic segmentation in progress…
+                </p>
               </div>
             )}
 
-            {/* COMPLETE */}
+            {status === "error" && (
+              <div className="mt-7 flex gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600">
+                <AlertTriangle
+                  size={16}
+                  className="mt-0.5 shrink-0"
+                />
 
-            {status === "complete" && result && (
-              <div className="mt-6">
-                <p className="text-sm text-gray-500">{result.title}</p>
+                {result?.message ||
+                  "Analysis failed. Ensure the AI service is running on port 5001."}
+              </div>
+            )}
 
-                <p className="mt-1.5 text-2xl font-semibold text-emerald-700">
-                  {result.value}
-                </p>
-
-                {/* BEFORE / AFTER PREVIEW */}
-
-                {mode === "change" && beforePreview && afterPreview && (
-                  <div className="mt-5 grid grid-cols-2 gap-2">
-                    <div className="overflow-hidden rounded-lg border border-[#dbe4de]">
+            {status === "done" &&
+              result &&
+              result.mode === "change" && (
+                <div className="mt-5 space-y-5">
+                  {result.resultImageB64 && (
+                    <div className="overflow-hidden rounded-xl border border-[#dbe4de]">
                       <img
-                        src={beforePreview}
-                        alt="Before comparison"
-                        className="h-24 w-full object-cover"
+                        src={`data:image/png;base64,${result.resultImageB64}`}
+                        alt="Deforestation overlay"
+                        className="w-full object-cover"
                       />
 
-                      <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-gray-500">
-                        Before
+                      <p className="bg-gray-50 px-3 py-2 text-[10px] text-gray-500">
+                        Red overlay = vegetation present before
+                        but absent after
                       </p>
                     </div>
+                  )}
 
-                    <div className="overflow-hidden rounded-lg border border-[#dbe4de]">
-                      <img
-                        src={afterPreview}
-                        alt="After comparison"
-                        className="h-24 w-full object-cover"
-                      />
+                  <div className="flex items-start gap-3 rounded-lg border border-[#dbe4de] bg-[#f6f9f7] p-4">
+                    <TreePine
+                      size={20}
+                      className="mt-0.5 shrink-0 text-emerald-600"
+                    />
 
-                      <p className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-gray-500">
-                        After
+                    <div>
+                      <p className="text-xs text-gray-500">
+                        Vegetation loss
+                      </p>
+
+                      <p
+                        className={`text-3xl font-bold ${severityColor(
+                          result.lossPercentage
+                        )}`}
+                      >
+                        {result.lossPercentage}%
+                      </p>
+
+                      <p
+                        className={`mt-0.5 text-xs font-semibold ${severityColor(
+                          result.lossPercentage
+                        )}`}
+                      >
+                        {severityLabel(
+                          result.lossPercentage
+                        )}{" "}
+                        severity
                       </p>
                     </div>
                   </div>
-                )}
 
-                {/* TIME-LAPSE THUMBNAIL STRIP */}
-
-                {mode === "timelapse" && snapshots.length > 0 && (
-                  <div className="mt-5 flex gap-2 overflow-x-auto pb-1">
-                    {snapshots.map((s, idx) => (
+                  <div className="divide-y divide-[#dbe4de] rounded-lg border border-[#dbe4de]">
+                    {[
+                      [
+                        "Model confidence",
+                        `${result.confidence}%`,
+                      ],
+                      [
+                        "Deforestation clusters",
+                        result.spotCount,
+                      ],
+                      [
+                        "Pixels lost",
+                        result.pixelsLost?.toLocaleString(),
+                      ],
+                      ["Region", result.region],
+                      [
+                        "Before confidence",
+                        `${result.beforeConfidence}%`,
+                      ],
+                      [
+                        "After confidence",
+                        `${result.afterConfidence}%`,
+                      ],
+                    ].map(([label, value]) => (
                       <div
-                        key={idx}
-                        className={`shrink-0 overflow-hidden rounded-lg border ${
-                          idx === slider ? "border-emerald-600" : "border-[#dbe4de]"
-                        }`}
+                        key={label}
+                        className="flex items-center justify-between gap-4 px-4 py-3"
                       >
-                        <img
-                          src={s.preview}
-                          alt={s.date}
-                          className="h-16 w-24 object-cover"
-                        />
-                        <p className="px-1.5 py-1 text-center text-[9px] text-gray-500">
-                          {s.date}
-                        </p>
+                        <span className="text-sm text-gray-500">
+                          {label}
+                        </span>
+
+                        <span className="text-sm font-medium text-gray-800">
+                          {value}
+                        </span>
                       </div>
                     ))}
                   </div>
-                )}
 
-                {/* RESULT DETAILS */}
+                  {result.lostTreeSpots?.length > 0 && (
+                    <div>
+                      <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                        <Target size={13} />
+                        Top deforestation clusters
+                      </p>
 
-                <div className="mt-5 divide-y divide-[#dbe4de] rounded-lg border border-[#dbe4de] bg-[#f6f9f7]">
-                  {result.details.map(([label, value]) => (
-                    <div
-                      key={label}
-                      className="flex items-center justify-between gap-4 px-4 py-3"
-                    >
-                      <span className="text-sm text-gray-500">{label}</span>
+                      <div className="max-h-40 overflow-y-auto rounded-lg border border-[#dbe4de] text-xs">
+                        {result.lostTreeSpots
+                          .slice(0, 10)
+                          .map((spot) => (
+                            <div
+                              key={spot.id}
+                              className="flex items-center justify-between border-b border-[#dbe4de] px-3 py-2 last:border-0"
+                            >
+                              <span className="text-gray-500">
+                                Cluster #{spot.id} — (
+                                {spot.centroid_x},{" "}
+                                {spot.centroid_y})
+                              </span>
 
-                      <span className="text-sm font-medium text-gray-800">
-                        {value}
-                      </span>
+                              <span className="font-medium text-gray-800">
+                                {spot.pixels_lost.toLocaleString()}{" "}
+                                px
+                              </span>
+                            </div>
+                          ))}
+                      </div>
                     </div>
-                  ))}
-                </div>
+                  )}
 
-                <p className="mt-4 text-xs leading-5 text-gray-400">
-                  Demo frontend inference. Connect{" "}
-                  <code className="mx-1 text-gray-500">handleAnalyze()</code> to
-                  your ML/API response.
-                </p>
-              </div>
-            )}
+                  {result.legalStatus && (
+                    <div
+                      className={`flex items-start gap-3 rounded-lg border p-4 ${
+                        result.legalStatus === "legal"
+                          ? "border-emerald-200 bg-emerald-50"
+                          : result.legalStatus === "illegal"
+                            ? "border-red-200 bg-red-50"
+                            : "border-yellow-200 bg-yellow-50"
+                      }`}
+                    >
+                      <span className="mt-0.5 text-lg leading-none">
+                        {result.legalStatus === "legal"
+                          ? "✅"
+                          : result.legalStatus === "illegal"
+                            ? "🚨"
+                            : "⚠️"}
+                      </span>
+
+                      <div className="flex-1">
+                        {result.legalStatus ===
+                          "legal" && (
+                          <>
+                            <p className="text-sm font-semibold text-emerald-800">
+                              Legal Cutting Zone
+                            </p>
+
+                            <p className="mt-1 text-xs text-emerald-700">
+                              This area is within a permitted
+                              cutting zone. No alert has been
+                              raised.
+                            </p>
+
+                            {result.legalZone && (
+                              <div className="mt-2 divide-y divide-emerald-200 rounded border border-emerald-200">
+                                {[
+                                  [
+                                    "Zone name",
+                                    result.legalZone.name,
+                                  ],
+                                  [
+                                    "Permit no.",
+                                    result.legalZone
+                                      .permitNumber,
+                                  ],
+                                  [
+                                    "Valid until",
+                                    result.legalZone
+                                      .validUntil
+                                      ? new Date(
+                                          result.legalZone.validUntil
+                                        ).toLocaleDateString()
+                                      : "—",
+                                  ],
+                                ].map(
+                                  ([label, value]) => (
+                                    <div
+                                      key={label}
+                                      className="flex justify-between gap-4 px-3 py-2"
+                                    >
+                                      <span className="text-xs text-emerald-700">
+                                        {label}
+                                      </span>
+
+                                      <span className="text-xs font-medium text-emerald-900">
+                                        {value}
+                                      </span>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {result.legalStatus ===
+                          "illegal" && (
+                          <>
+                            <p className="text-sm font-semibold text-red-700">
+                              Illegal Deforestation Detected
+                            </p>
+
+                            <p className="mt-1 text-xs text-red-600">
+                              Coordinates do not match any
+                              legal cutting zone. An alert has
+                              been raised for official review.
+                            </p>
+
+                            {alertId && (
+                              <p className="mt-2 text-xs text-red-500">
+                                Alert ID:{" "}
+                                <span className="font-mono font-semibold">
+                                  {alertId}
+                                </span>
+                              </p>
+                            )}
+                          </>
+                        )}
+
+                        {result.legalStatus ===
+                          "unverified" && (
+                          <>
+                            <p className="text-sm font-semibold text-yellow-800">
+                              Verification Unavailable
+                            </p>
+
+                            <p className="mt-1 text-xs text-yellow-700">
+                              Legal zone check failed. Alert
+                              raised as unverified — pending
+                              manual review.
+                            </p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {isOfficial && (
+                    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-800">
+                        Official report
+                      </p>
+
+                      <p className="mb-3 text-xs text-emerald-700">
+                        Generate and download a classified PDF
+                        report based on this analysis and recent
+                        regional alerts.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={handleGenerateReport}
+                        disabled={
+                          reportStatus === "generating"
+                        }
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600 disabled:opacity-60"
+                      >
+                        {reportStatus === "generating" ? (
+                          <>
+                            <LoaderCircle
+                              size={15}
+                              className="animate-spin"
+                            />
+                            Generating PDF…
+                          </>
+                        ) : reportStatus === "done" ? (
+                          <>
+                            <CheckCircle2 size={15} />
+                            Report downloaded
+                          </>
+                        ) : reportStatus === "error" ? (
+                          <>
+                            <AlertTriangle size={15} />
+                            Report failed — retry
+                          </>
+                        ) : (
+                          <>
+                            <Download size={15} />
+                            Generate &amp; download report
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+            {status === "done" &&
+              result &&
+              result.mode === "landcover" && (
+                <div className="mt-5 space-y-5">
+                  <div className="flex items-start gap-3 rounded-lg border border-[#dbe4de] bg-[#f6f9f7] p-4">
+                    <BarChart3
+                      size={20}
+                      className="mt-0.5 shrink-0 text-emerald-600"
+                    />
+
+                    <div>
+                      <p className="text-xs text-gray-500">
+                        Vegetation coverage
+                      </p>
+
+                      <p className="text-3xl font-bold text-emerald-700">
+                        {result.vegetationPct}%
+                      </p>
+
+                      <p className="mt-0.5 text-xs font-semibold text-emerald-600">
+                        {result.classification}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="divide-y divide-[#dbe4de] rounded-lg border border-[#dbe4de]">
+                    {[
+                      [
+                        "Model confidence",
+                        `${result.confidence}%`,
+                      ],
+                      ["Region", result.region],
+                    ].map(([label, value]) => (
+                      <div
+                        key={label}
+                        className="flex items-center justify-between gap-4 px-4 py-3"
+                      >
+                        <span className="text-sm text-gray-500">
+                          {label}
+                        </span>
+
+                        <span className="text-sm font-medium text-gray-800">
+                          {value}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
           </div>
         </div>
       </div>
