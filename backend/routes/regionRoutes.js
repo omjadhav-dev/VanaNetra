@@ -1,0 +1,1 @@
+const r=require("express").Router();const c=require("../controllers/regionController");const {protect,allow}=require("../middleware/auth");r.get("/",c.list);r.get("/:id",c.get);r.post("/",protect,allow("Admin"),c.create);r.patch("/:id",protect,allow("Admin","Official"),c.update);module.exports=r;
