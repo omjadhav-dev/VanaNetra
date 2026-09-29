@@ -1,0 +1,76 @@
+[
+  {
+    "name": "Papikondalu Permitted Block A",
+    "district": "EastGodavari",
+    "state": "Andhra Pradesh",
+    "permitType": "timber-harvest",
+    "permitNumber": "AP/EG/2019-20/001",
+    "validFrom": "2019-04-01T00:00:00.000Z",
+    "validUntil": "2026-03-31T23:59:59.000Z",
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            81.75,
+            17.25
+          ],
+          [
+            81.85,
+            17.25
+          ],
+          [
+            81.85,
+            17.35
+          ],
+          [
+            81.75,
+            17.35
+          ],
+          [
+            81.75,
+            17.25
+          ]
+        ]
+      ]
+    },
+    "isActive": true
+  },
+  {
+    "name": "Kurnool Forest Block B",
+    "district": "Kurnool",
+    "state": "Andhra Pradesh",
+    "permitType": "timber-harvest",
+    "permitNumber": "AP/KNL/2019-20/004",
+    "validFrom": "2019-04-01T00:00:00.000Z",
+    "validUntil": "2026-03-31T23:59:59.000Z",
+    "boundary": {
+      "type": "Polygon",
+      "coordinates": [
+        [
+          [
+            77.95,
+            15.75
+          ],
+          [
+            78.05,
+            15.75
+          ],
+          [
+            78.05,
+            15.85
+          ],
+          [
+            77.95,
+            15.85
+          ],
+          [
+            77.95,
+            15.75
+          ]
+        ]
+      ]
+    },
+    "isActive": true
+  }
+]
