@@ -1,0 +1,11 @@
+const r = require("express").Router();
+const c = require("../controllers/alertController");
+const { protect, allow } = require("../middleware/auth");
+r.get("/public", c.publicList);
+r.get("/", protect, c.list);
+r.get("/stats", protect, c.stats);
+r.get("/:id", protect, c.get);
+r.post("/", protect, c.create);
+r.patch("/:id/advance", protect, allow("Official", "Admin"), c.advance);
+r.patch("/:id/assign", protect, allow("Official", "Admin"), c.assign);
+module.exports = r;
