@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../lib/api";
 import { Radio, Check, History, X, ChevronRight } from "lucide-react";
 
 // Status workflow, in order. Every alert audit trail is a subsequence of this.
@@ -178,40 +179,57 @@ function AuditTrailModal({ alert, onClose }) {
 }
 
 function Alerts() {
-  const [alerts, setAlerts] = useState(initialAlerts);
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [severity, setSeverity] = useState("All");
   const [time, setTime] = useState("All time");
   const [notice, setNotice] = useState("");
   const [trailAlert, setTrailAlert] = useState(null);
+  const [updating, setUpdating] = useState(null);
+
+  useEffect(() => {
+    api("/alerts")
+      .then((d) => {
+        const mapped = (d.alerts || []).map((a) => ({
+          id: a._id,
+          region: a.region?.name || a.region || "Unknown",
+          loss: a.lossPercentage ?? 0,
+          area: a.affectedAreaHectares ?? 0,
+          score: a.severityScore ?? 0,
+          confidence: a.confidenceScore ?? 0,
+          detected: a.detectedAt || a.createdAt || new Date().toISOString(),
+          status: a.status || "Pending",
+          history: (a.statusHistory || []).map((h) => ({
+            status: h.status,
+            by: h.changedByLabel || "System",
+            at: h.changedAt || h.at || new Date().toISOString(),
+          })),
+          severity: a.severity || deriveSeverity(a.lossPercentage ?? 0),
+        }));
+        setAlerts(mapped);
+      })
+      .catch(() => setAlerts([]))
+      .finally(() => setLoading(false));
+  }, []);
 
   const withSeverity = useMemo(
-    () => alerts.map((a) => ({ ...a, severity: deriveSeverity(a.loss) })),
+    () => alerts.map((a) => ({ ...a, severity: a.severity || deriveSeverity(a.loss) })),
     [alerts]
   );
 
   const filtered = useMemo(() => {
-    const now = new Date("2026-08-10T00:00:00");
-
+    const now = new Date();
     const days =
-      time === "Last 7 days"
-        ? 7
-        : time === "Last 30 days"
-        ? 30
-        : time === "Last 90 days"
-        ? 90
-        : null;
+      time === "Last 7 days" ? 7 :
+      time === "Last 30 days" ? 30 :
+      time === "Last 90 days" ? 90 : null;
 
     return withSeverity.filter((alert) => {
-      const matchesSeverity =
-        severity === "All" || alert.severity === severity;
-
-      const age = Math.floor(
-        (now - new Date(`${alert.detected}T00:00:00`)) / 86400000
-      );
-
-      const matchesTime = days === null || age <= days;
-
-      return matchesSeverity && matchesTime;
+      const matchesSeverity = severity === "All" || alert.severity === severity;
+      if (days === null) return matchesSeverity;
+      const detectedAt = new Date(alert.detected);
+      const age = Math.floor((now - detectedAt) / 86400000);
+      return matchesSeverity && age >= 0 && age <= days;
     });
   }, [withSeverity, severity, time]);
 
@@ -220,38 +238,52 @@ function Alerts() {
     unresolved: alerts.filter((a) => a.status !== "Resolved").length,
     critical: withSeverity.filter((a) => a.severity === "Critical").length,
     avgConfidence:
-      alerts.reduce((sum, a) => sum + a.confidence, 0) /
+      alerts.reduce((sum, a) => sum + Number(a.confidence || 0), 0) /
       Math.max(alerts.length, 1),
   };
 
-  const advanceStatus = (id) => {
-    setAlerts((current) =>
-      current.map((alert) => {
-        if (alert.id !== id) return alert;
+  const advanceStatus = async (id) => {
+    const current = alerts.find((a) => a.id === id);
+    const upcoming = current ? nextStatus(current.status) : null;
+    if (!upcoming) return;
 
-        const upcoming = nextStatus(alert.status);
-        if (!upcoming) return alert;
+    setUpdating(id);
+    try {
+      // The actual backend contract is PATCH /alerts/:id/advance.
+      const { alert: updated } = await api(`/alerts/${id}/advance`, {
+        method: "PATCH",
+        body: {},
+      });
 
-        return {
-          ...alert,
-          status: upcoming,
-          history: [
-            ...alert.history,
-            {
-              status: upcoming,
-              by: "You (current officer)",
-              at: new Date().toISOString(),
-            },
-          ],
-        };
-      })
-    );
+      const mapped = {
+        id: updated._id,
+        region: updated.region?.name || current.region || "Unknown",
+        loss: updated.lossPercentage ?? 0,
+        area: updated.affectedAreaHectares ?? 0,
+        score: updated.severityScore ?? 0,
+        confidence: updated.confidenceScore ?? 0,
+        detected: updated.detectedAt || current.detected,
+        status: updated.status || upcoming,
+        history: (updated.statusHistory || []).map((h) => ({
+          status: h.status,
+          by: h.changedByLabel || "System",
+          at: h.changedAt || h.at || new Date().toISOString(),
+        })),
+        severity: updated.severity || current.severity || deriveSeverity(updated.lossPercentage ?? 0),
+      };
 
-    const alert = alerts.find((a) => a.id === id);
-    const upcoming = alert ? nextStatus(alert.status) : null;
-
-    setNotice(upcoming ? `Alert moved to "${upcoming}".` : "");
-    window.setTimeout(() => setNotice(""), 1800);
+      setAlerts((currentAlerts) =>
+        currentAlerts.map((a) => (a.id === id ? mapped : a))
+      );
+      if (trailAlert?.id === id) setTrailAlert(mapped);
+      setNotice(`Alert moved to "${mapped.status}".`);
+      window.setTimeout(() => setNotice(""), 1800);
+    } catch (err) {
+      setNotice(`Update failed: ${err.message}`);
+      window.setTimeout(() => setNotice(""), 3500);
+    } finally {
+      setUpdating(null);
+    }
   };
 
   return (
@@ -277,7 +309,7 @@ function Alerts() {
 
           <div className="mt-1 inline-flex shrink-0 items-center gap-2 rounded-full border border-[#dbe4de] bg-white px-3.5 py-2 text-xs text-gray-600">
             <Radio size={14} className="text-emerald-600" />
-            <span>Live · 0 received</span>
+            <span>Live · {stats.total} received</span>
           </div>
         </div>
 
@@ -383,7 +415,13 @@ function Alerts() {
           */}
           <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden">
 
-            <table className="w-full table-fixed border-collapse">
+            {loading && (
+              <div className="p-10 text-center">
+                <p className="text-sm text-gray-500">Loading alerts...</p>
+              </div>
+            )}
+
+            {!loading && <table className="w-full table-fixed border-collapse">
 
               {/* TABLE HEADER */}
               <thead className="sticky top-0 z-10 bg-white">
@@ -457,7 +495,7 @@ function Alerts() {
 
                       {/* DATE */}
                       <td className="px-3 py-2.5 text-[14px] text-gray-500">
-                        {new Date(`${alert.detected}T00:00:00`).toLocaleDateString("en-IN")}
+                        {new Date(alert.detected).toLocaleDateString("en-IN")}
                       </td>
 
                       {/* STATUS */}
@@ -485,6 +523,7 @@ function Alerts() {
                           <button
                             type="button"
                             onClick={() => advanceStatus(alert.id)}
+                            disabled={updating === alert.id}
                             className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-[#c9d6cd] px-3.5 py-1.5 text-[11px] text-gray-600 transition hover:border-emerald-700 hover:text-gray-900"
                           >
                             {upcoming}
@@ -498,9 +537,9 @@ function Alerts() {
                   );
                 })}
               </tbody>
-            </table>
+            </table>}
 
-            {filtered.length === 0 && (
+            {!loading && filtered.length === 0 && (
               <div className="p-10 text-center">
                 <p className="text-sm text-gray-500">
                   No alerts match the selected filters.
