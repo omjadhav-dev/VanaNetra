@@ -1,19 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
 import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
+  LineChart, Line, BarChart, Bar,
+  XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip, ReferenceLine,
 } from "recharts";
-
-// REGIONS
+import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 const REGIONS = [
+  "All",
   "Bandhavgarh Belt",
   "Kaziranga Corridor",
   "Nilgiri Biosphere",
@@ -21,285 +15,157 @@ const REGIONS = [
   "Western Ghats Reserve",
 ];
 
-// REGION DATA
+function trend(data) {
+  if (data.length < 2) return "flat";
+  const last = data[data.length - 1].loss;
+  const prev = data[data.length - 2].loss;
+  if (last > prev + 0.5) return "up";
+  if (last < prev - 0.5) return "down";
+  return "flat";
+}
 
-const REGION_DATA = {
-  "Bandhavgarh Belt": [
-    { month: "2025-12", loss: 4, area: 160, alerts: 8 },
-    { month: "2026-01", loss: 5.5, area: 240, alerts: 10 },
-    { month: "2026-02", loss: 8, area: 325, alerts: 14 },
-    { month: "2026-03", loss: 7, area: 285, alerts: 12 },
-    { month: "2026-04", loss: 9, area: 365, alerts: 16 },
-    { month: "2026-05", loss: 11, area: 450, alerts: 19 },
-    { month: "2026-06", loss: 10, area: 410, alerts: 17 },
-    { month: "2026-07", loss: 12, area: 490, alerts: 21 },
-  ],
-
-  "Kaziranga Corridor": [
-    { month: "2025-12", loss: 3, area: 130, alerts: 6 },
-    { month: "2026-01", loss: 4.5, area: 190, alerts: 8 },
-    { month: "2026-02", loss: 6.5, area: 260, alerts: 11 },
-    { month: "2026-03", loss: 6, area: 230, alerts: 10 },
-    { month: "2026-04", loss: 7.5, area: 310, alerts: 13 },
-    { month: "2026-05", loss: 9, area: 380, alerts: 15 },
-    { month: "2026-06", loss: 8.5, area: 350, alerts: 14 },
-    { month: "2026-07", loss: 10, area: 420, alerts: 17 },
-  ],
-
-  "Nilgiri Biosphere": [
-    { month: "2025-12", loss: 2, area: 80, alerts: 4 },
-    { month: "2026-01", loss: 2.8, area: 110, alerts: 5 },
-    { month: "2026-02", loss: 3.7, area: 145, alerts: 7 },
-    { month: "2026-03", loss: 3.4, area: 130, alerts: 6 },
-    { month: "2026-04", loss: 4.2, area: 170, alerts: 8 },
-    { month: "2026-05", loss: 5.1, area: 205, alerts: 9 },
-    { month: "2026-06", loss: 5.7, area: 190, alerts: 9 },
-    { month: "2026-07", loss: 6.4, area: 230, alerts: 11 },
-  ],
-
-  "Sundarbans Delta": [
-    { month: "2025-12", loss: 2.5, area: 100, alerts: 5 },
-    { month: "2026-01", loss: 3.8, area: 165, alerts: 7 },
-    { month: "2026-02", loss: 4.6, area: 220, alerts: 9 },
-    { month: "2026-03", loss: 4.2, area: 195, alerts: 8 },
-    { month: "2026-04", loss: 5.3, area: 270, alerts: 11 },
-    { month: "2026-05", loss: 6.1, area: 330, alerts: 13 },
-    { month: "2026-06", loss: 6.8, area: 300, alerts: 12 },
-    { month: "2026-07", loss: 7.5, area: 365, alerts: 15 },
-  ],
-
-  "Western Ghats Reserve": [
-    { month: "2025-12", loss: 4, area: 165, alerts: 7 },
-    { month: "2026-01", loss: 6, area: 250, alerts: 11 },
-    { month: "2026-02", loss: 8, area: 330, alerts: 14 },
-    { month: "2026-03", loss: 7, area: 290, alerts: 12 },
-    { month: "2026-04", loss: 9, area: 365, alerts: 16 },
-    { month: "2026-05", loss: 11, area: 450, alerts: 19 },
-    { month: "2026-06", loss: 10, area: 410, alerts: 17 },
-    { month: "2026-07", loss: 12, area: 490, alerts: 21 },
-  ],
-};
-
-// TRENDS PAGE
+function TrendIcon({ data }) {
+  const t = trend(data);
+  if (t === "up")   return <TrendingUp  size={16} className="text-red-500" />;
+  if (t === "down") return <TrendingDown size={16} className="text-emerald-500" />;
+  return <Minus size={16} className="text-gray-400" />;
+}
 
 function Trends() {
-  const [selectedRegion, setSelectedRegion] = useState("Bandhavgarh Belt");
+  const [selectedRegion, setSelectedRegion] = useState("All");
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const data = REGION_DATA[selectedRegion];
+  useEffect(() => {
+    setLoading(true);
+    const q = selectedRegion === "All" ? "" : `?region=${encodeURIComponent(selectedRegion)}`;
+    api(`/dashboard/trends${q}`)
+      .then(d => setData(d.data || []))
+      .catch(() => setData([]))
+      .finally(()=> setLoading(false));
+  }, [selectedRegion]);
+
+  const latest   = data[data.length - 1];
+  const previous = data[data.length - 2];
+  const lossDelta = latest && previous ? +(latest.loss - previous.loss).toFixed(1) : null;
 
   return (
     <div className="min-h-screen bg-[#f6f9f7] px-6 py-6 text-gray-900 lg:px-8">
       <div className="mx-auto max-w-[1400px]">
-        {/* =====================================================
-            PAGE HEADER
-        ===================================================== */}
 
+        {/* HEADER */}
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">
-            Loss trends
-          </h1>
-
+          <h1 className="text-3xl font-semibold tracking-tight text-gray-900 sm:text-4xl">Loss trends</h1>
           <p className="mt-2 text-base text-[#4b6357]">
-            Monthly forest loss and affected area per monitored region
+            Historical monthly aggregates from all AI change-detection analyses. Updates automatically with each new analysis run.
           </p>
         </div>
 
+        {/* REGION FILTER */}
         <div className="mt-6 flex flex-wrap gap-2.5">
-          {REGIONS.map((region) => {
-            const active = selectedRegion === region;
-
-            return (
-              <button
-                key={region}
-                type="button"
-                onClick={() => setSelectedRegion(region)}
-                className={`rounded-full border px-3 py-1.5 text-sm transition-all ${
-                  active
-                    ? "border-emerald-700 bg-emerald-700 text-white"
-                    : "border-[#dbe4de] bg-transparent text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
-                }`}
-              >
-                {region}
-              </button>
-            );
-          })}
+          {REGIONS.map(r => (
+            <button key={r} type="button" onClick={() => setSelectedRegion(r)}
+              className={`rounded-full border px-3 py-1.5 text-sm transition-all ${
+                selectedRegion === r
+                  ? "border-emerald-700 bg-emerald-700 text-white"
+                  : "border-[#dbe4de] text-gray-500 hover:border-[#8fab9a] hover:text-gray-900"
+              }`}>
+              {r}
+            </button>
+          ))}
         </div>
 
-        <div className="mt-6 grid gap-5 xl:grid-cols-2">
-          <div className="rounded-xl border border-[#dbe4de] bg-[#ffffff] p-5 sm:p-6">
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#4e6459]">
-              Forest loss % over time
-            </p>
+        {/* LIVE LOADING / EMPTY STATE */}
+        {loading && (
+          <div className="mt-5 rounded-xl border border-[#dbe4de] bg-white p-8 text-center text-sm text-gray-400">
+            Loading live trend data...
+          </div>
+        )}
 
-            <div className="mt-4 h-[350px] w-full">
+        {!loading && data.length === 0 && (
+          <div className="mt-5 rounded-xl border border-dashed border-[#dbe4de] bg-white p-12 text-center">
+            <p className="text-sm font-medium text-gray-500">No trend data yet</p>
+            <p className="mt-1 text-xs text-gray-400">Run change-detection analyses to populate this view.</p>
+          </div>
+        )}
+
+        {/* SUMMARY CARDS */}
+        {!loading && latest && (
+          <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            {[
+              ["Latest loss", `${latest.loss}%`, lossDelta !== null ? (lossDelta > 0 ? `▲ ${lossDelta}% vs prev` : lossDelta < 0 ? `▼ ${Math.abs(lossDelta)}% vs prev` : "Stable") : "—", lossDelta > 0 ? "text-red-500" : "text-emerald-600"],
+              ["Latest area", `${latest.area} ha`, "Affected this month", "text-gray-500"],
+              ["Alerts this month", latest.alerts, "Change-detection events", "text-gray-500"],
+              ["Months tracked", data.length, "In selected region", "text-gray-500"],
+            ].map(([label, value, sub, subColor]) => (
+              <div key={label} className="rounded-xl border border-[#dbe4de] bg-white p-4">
+                <p className="text-[11px] uppercase tracking-[0.2em] text-gray-500">{label}</p>
+                <p className="mt-2 text-2xl font-semibold text-gray-900">{value}</p>
+                <p className={`mt-1 text-xs ${subColor}`}>{sub}</p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* CHARTS */}
+        {!loading && data.length > 0 && (
+        <div className="mt-5 grid gap-5 xl:grid-cols-2">
+
+          {/* LOSS % LINE CHART */}
+          <div className="rounded-xl border border-[#dbe4de] bg-white p-5 sm:p-6">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#4e6459]">Vegetation loss % over time</p>
+              {!loading && <TrendIcon data={data} />}
+            </div>
+            <div className="mt-4 h-[320px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={data}
-                  margin={{
-                    top: 20,
-                    right: 15,
-                    left: 5,
-                    bottom: 10,
-                  }}
-                >
-                  <CartesianGrid horizontal={false} vertical={false} />
-
-                  <XAxis
-                    dataKey="month"
-                    tick={{
-                      fill: "#6b7d74",
-                      fontSize: 12,
-                    }}
-                    axisLine={{
-                      stroke: "#a9bab0",
-                    }}
-                    tickLine={{
-                      stroke: "#a9bab0",
-                    }}
-                  />
-
-                  <YAxis
-                    domain={[0, 12]}
-                    ticks={[0, 3, 6, 9, 12]}
-                    tick={{
-                      fill: "#6b7d74",
-                      fontSize: 12,
-                    }}
-                    axisLine={{
-                      stroke: "#a9bab0",
-                    }}
-                    tickLine={{
-                      stroke: "#a9bab0",
-                    }}
-                  />
-
+                <LineChart data={data} margin={{ top: 20, right: 15, left: 5, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f4f1" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fill: "#6b7d74", fontSize: 12 }} axisLine={{ stroke: "#a9bab0" }} tickLine={false} />
+                  <YAxis domain={[0, "auto"]} tick={{ fill: "#6b7d74", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `${v}%`} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #c9d6cd",
-                      borderRadius: "8px",
-                      color: "#0b120e",
-                    }}
-                    labelStyle={{
-                      color: "#4b6357",
-                    }}
-                    formatter={(value) => [`${value}%`, "Loss"]}
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #c9d6cd", borderRadius: "8px" }}
+                    formatter={v => [`${v}%`, "Loss"]}
                   />
-
-                  <Line
-                    type="monotone"
-                    dataKey="loss"
-                    stroke="#3b996e"
-                    strokeWidth={3}
-                    dot={{
-                      r: 3,
-                      fill: "#ffffff",
-                      stroke: "#3b996e",
-                      strokeWidth: 2,
-                    }}
-                    activeDot={{
-                      r: 5,
-                      fill: "#3b996e",
-                    }}
-                  />
+                  {/* mark the latest data point as "current" */}
+                  {latest && <ReferenceLine x={latest.month} stroke="#3b996e" strokeDasharray="4 2" label={{ value: "latest", position: "top", fontSize: 10, fill: "#3b996e" }} />}
+                  <Line type="monotone" dataKey="loss" stroke="#3b996e" strokeWidth={2.5}
+                    dot={{ r: 3, fill: "#fff", stroke: "#3b996e", strokeWidth: 2 }}
+                    activeDot={{ r: 5, fill: "#3b996e" }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
-
-            <div className="flex justify-center">
-              <div className="flex items-center gap-2 text-sm text-[#3b996e]">
-                <span className="h-2.5 w-2.5 rounded-full border-2 border-[#3b996e]" />
-                Loss %
-              </div>
-            </div>
           </div>
 
-          <div className="rounded-xl border border-[#dbe4de] bg-[#ffffff] p-5 sm:p-6">
-            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#4e6459]">
-              Affected area (ha) & alert volume
-            </p>
-
-            <div className="mt-4 h-[350px] w-full">
+          {/* AREA + ALERTS BAR CHART */}
+          <div className="rounded-xl border border-[#dbe4de] bg-white p-5 sm:p-6">
+            <p className="text-xs font-medium uppercase tracking-[0.22em] text-[#4e6459]">Affected area (ha) per month</p>
+            <div className="mt-4 h-[320px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={data}
-                  margin={{
-                    top: 20,
-                    right: 10,
-                    left: 5,
-                    bottom: 10,
-                  }}
-                >
-                  <CartesianGrid horizontal={false} vertical={false} />
-
-                  <XAxis
-                    dataKey="month"
-                    tick={{
-                      fill: "#6b7d74",
-                      fontSize: 12,
-                    }}
-                    axisLine={{
-                      stroke: "#a9bab0",
-                    }}
-                    tickLine={{
-                      stroke: "#a9bab0",
-                    }}
-                  />
-
-                  <YAxis
-                    domain={[0, 600]}
-                    ticks={[0, 150, 300, 450, 600]}
-                    tick={{
-                      fill: "#6b7d74",
-                      fontSize: 12,
-                    }}
-                    axisLine={{
-                      stroke: "#a9bab0",
-                    }}
-                    tickLine={{
-                      stroke: "#a9bab0",
-                    }}
-                  />
-
+                <BarChart data={data} margin={{ top: 20, right: 10, left: 5, bottom: 10 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f4f1" vertical={false} />
+                  <XAxis dataKey="month" tick={{ fill: "#6b7d74", fontSize: 12 }} axisLine={{ stroke: "#a9bab0" }} tickLine={false} />
+                  <YAxis tick={{ fill: "#6b7d74", fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={v => `${v} ha`} />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #c9d6cd",
-                      borderRadius: "8px",
-                      color: "#0b120e",
-                    }}
-                    labelStyle={{
-                      color: "#4b6357",
-                    }}
-                    formatter={(value, name) => [
-                      name === "area" ? `${value} ha` : value,
-                      name === "area" ? "Hectares" : "Alerts",
-                    ]}
+                    contentStyle={{ backgroundColor: "#fff", border: "1px solid #c9d6cd", borderRadius: "8px" }}
+                    formatter={(v, name) => [name === "area" ? `${v} ha` : v, name === "area" ? "Hectares" : "Alerts"]}
                   />
-
-                  <Bar
-                    dataKey="area"
-                    fill="#f59e0b"
-                    radius={[4, 4, 0, 0]}
-                    barSize={25}
-                  />
+                  <Bar dataKey="area" fill="#f59e0b" radius={[4, 4, 0, 0]} barSize={28} />
+                  <Bar dataKey="alerts" fill="#3b996e" radius={[4, 4, 0, 0]} barSize={14} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-
-            <div className="flex justify-center gap-6">
-              <div className="flex items-center gap-2 text-sm text-red-400">
-                <span className="h-3 w-3 bg-red-500" />
-                Alerts
-              </div>
-
-              <div className="flex items-center gap-2 text-sm text-amber-400">
-                <span className="h-3 w-3 bg-amber-500" />
-                Hectares
-              </div>
+            <div className="mt-3 flex justify-center gap-6 text-xs">
+              <div className="flex items-center gap-1.5 text-amber-500"><span className="h-3 w-3 rounded-sm bg-amber-400" />Hectares</div>
+              <div className="flex items-center gap-1.5 text-emerald-600"><span className="h-3 w-3 rounded-sm bg-emerald-500" />Alert count</div>
             </div>
           </div>
         </div>
+        )}
+
+        <p className="mt-4 text-xs text-gray-400">
+          Data sourced from all change-detection analyses. Each analysis run in the Analyze tab adds a data point to this graph automatically.
+        </p>
       </div>
     </div>
   );
