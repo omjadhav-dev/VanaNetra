@@ -1,0 +1,1411 @@
+const PDFDocument = require("pdfkit");
+const fs = require("fs");
+const path = require("path");
+const { Report, Alert, Region } = require("../models");
+const audit = require("../utils/audit");
+
+const PAGE = {
+  width: 595.28,
+  height: 841.89,
+  margin: 42,
+};
+
+const COLORS = {
+  ink: "#17211B",
+  muted: "#66736B",
+  line: "#DCE5DF",
+  soft: "#F4F8F5",
+  green: "#087F5B",
+  greenDark: "#056044",
+  greenSoft: "#E8F6F0",
+  red: "#C92A2A",
+  redSoft: "#FFF0F0",
+  orange: "#D97706",
+  orangeSoft: "#FFF7E6",
+  yellow: "#A16207",
+  yellowSoft: "#FFFBEA",
+  white: "#FFFFFF",
+};
+
+function formatDate(value) {
+  return new Date(value).toLocaleDateString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function formatDateTime(value) {
+  return new Date(value).toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function number(value) {
+  return Number(value || 0).toLocaleString("en-IN");
+}
+
+function fixed(value, digits = 2) {
+  return Number(value || 0).toFixed(digits);
+}
+
+function severityForLoss(loss) {
+  if (loss >= 18) return "Critical";
+  if (loss >= 10) return "High";
+  if (loss >= 4) return "Medium";
+  return "Low";
+}
+
+function severityPalette(severity) {
+  if (severity === "Critical") {
+    return {
+      text: COLORS.red,
+      fill: COLORS.redSoft,
+    };
+  }
+
+  if (severity === "High") {
+    return {
+      text: COLORS.orange,
+      fill: COLORS.orangeSoft,
+    };
+  }
+
+  if (severity === "Medium") {
+    return {
+      text: COLORS.yellow,
+      fill: COLORS.yellowSoft,
+    };
+  }
+
+  return {
+    text: COLORS.green,
+    fill: COLORS.greenSoft,
+  };
+}
+
+function decodeBase64Image(value) {
+  if (!value) return null;
+
+  try {
+    const raw = String(value).replace(/^data:image\/[^;]+;base64,/, "");
+
+    return Buffer.from(raw, "base64");
+  } catch {
+    return null;
+  }
+}
+
+function uploadImagePath(url) {
+  if (!url || typeof url !== "string") return null;
+
+  const filename = path.basename(url.split("?")[0]);
+
+  if (!filename || filename === "." || filename === "..") {
+    return null;
+  }
+
+  const filePath = path.join(__dirname, "..", "uploads", filename);
+
+  return fs.existsSync(filePath) ? filePath : null;
+}
+
+function drawHeader(doc, report) {
+  doc.save();
+
+  doc.rect(0, 0, PAGE.width, 7).fill(COLORS.green);
+
+  doc
+    .fillColor(COLORS.ink)
+    .font("Helvetica-Bold")
+    .fontSize(21)
+    .text("VanaNetra", PAGE.margin, 28);
+
+  doc
+    .fillColor(COLORS.muted)
+    .font("Helvetica")
+    .fontSize(8)
+    .text("FOREST INTELLIGENCE · ANALYSIS REPORT", PAGE.margin, 53);
+
+  doc
+    .fillColor(COLORS.green)
+    .font("Helvetica-Bold")
+    .fontSize(9)
+    .text(report.reportId, PAGE.width - PAGE.margin - 100, 31, {
+      width: 100,
+      align: "right",
+      lineBreak: false,
+    });
+
+  doc.restore();
+}
+
+function drawFooter(doc, report, pageNumber = 1) {
+  const y = PAGE.height - 52;
+
+  doc.save();
+
+  doc
+    .strokeColor(COLORS.line)
+    .lineWidth(0.7)
+    .moveTo(PAGE.margin, y - 8)
+    .lineTo(PAGE.width - PAGE.margin, y - 8)
+    .stroke();
+
+  doc
+    .fillColor(COLORS.muted)
+    .font("Helvetica")
+    .fontSize(7.5)
+    .text(
+      `VanaNetra · ${report.classification} · ${report.reportId}`,
+      PAGE.margin,
+      y,
+      {
+        width: 330,
+        lineBreak: false,
+      },
+    );
+
+  doc
+    .fillColor(COLORS.muted)
+    .font("Helvetica")
+    .fontSize(7.5)
+    .text(`Page ${pageNumber}`, PAGE.width - PAGE.margin - 100, y, {
+      width: 100,
+      align: "right",
+      lineBreak: false,
+    });
+
+  doc.restore();
+}
+
+function addPage(doc, report) {
+  doc.addPage();
+
+  drawHeader(doc, report);
+
+  doc.x = PAGE.margin;
+  doc.y = 80;
+}
+
+function ensureSpace(doc, height, report) {
+  if (doc.y + height > PAGE.height - 52) {
+    addPage(doc, report);
+  }
+}
+
+function sectionTitle(doc, title, subtitle, report) {
+  ensureSpace(doc, 50, report);
+
+  const x = PAGE.margin;
+
+  const width = PAGE.width - PAGE.margin * 2;
+
+  doc.x = x;
+
+  doc
+    .fillColor(COLORS.ink)
+    .font("Helvetica-Bold")
+    .fontSize(12)
+    .text(title.toUpperCase(), x, doc.y, {
+      width,
+      align: "left",
+      lineBreak: true,
+    });
+
+  if (subtitle) {
+    doc
+      .moveDown(0.25)
+      .fillColor(COLORS.muted)
+      .font("Helvetica")
+      .fontSize(8.5)
+      .text(subtitle, x, doc.y, {
+        width,
+        align: "left",
+        lineBreak: true,
+      });
+  }
+
+  doc.x = x;
+
+  doc.moveDown(0.55);
+}
+
+function drawMetaGrid(doc, report) {
+  const x = PAGE.margin;
+  const y = doc.y;
+
+  const w = PAGE.width - PAGE.margin * 2;
+
+  const rowH = 25;
+  const colW = w / 2;
+
+  const rows = [
+    [
+      "Report ID",
+      report.reportId,
+      "Region",
+      report.region?.name || "All regions",
+    ],
+    [
+      "Period",
+      `${formatDate(report.periodStart)} – ${formatDate(report.periodEnd)}`,
+      "Classification",
+      report.classification,
+    ],
+    [
+      "Generated by",
+      report.generatedByLabel || "Official",
+      "Designation",
+      report.designationAtGeneration || "Forest Operations Official",
+    ],
+    [
+      "Generated at",
+      formatDateTime(report.createdAt),
+      "Analysis mode",
+      report.analysisSnapshot?.mode === "change"
+        ? "Change detection"
+        : report.analysisSnapshot?.mode || "Regional monitoring",
+    ],
+  ];
+
+  doc
+    .roundedRect(x, y, w, rowH * rows.length, 7)
+    .fillAndStroke(COLORS.soft, COLORS.line);
+
+  rows.forEach((row, i) => {
+    const yy = y + i * rowH;
+
+    if (i > 0) {
+      doc
+        .strokeColor(COLORS.line)
+        .lineWidth(0.5)
+        .moveTo(x, yy)
+        .lineTo(x + w, yy)
+        .stroke();
+    }
+
+    doc
+      .fillColor(COLORS.muted)
+      .font("Helvetica-Bold")
+      .fontSize(7.5)
+      .text(row[0].toUpperCase(), x + 10, yy + 6, {
+        width: 75,
+      });
+
+    doc
+      .fillColor(COLORS.ink)
+      .font("Helvetica")
+      .fontSize(8.5)
+      .text(String(row[1] ?? "—"), x + 88, yy + 5, {
+        width: colW - 98,
+      });
+
+    doc
+      .fillColor(COLORS.muted)
+      .font("Helvetica-Bold")
+      .fontSize(7.5)
+      .text(row[2].toUpperCase(), x + colW + 10, yy + 6, {
+        width: 75,
+      });
+
+    doc
+      .fillColor(COLORS.ink)
+      .font("Helvetica")
+      .fontSize(8.5)
+      .text(String(row[3] ?? "—"), x + colW + 88, yy + 5, {
+        width: colW - 98,
+      });
+  });
+
+  doc.y = y + rowH * rows.length + 16;
+
+  doc.x = PAGE.margin;
+}
+
+function drawMetricCards(doc, report, metrics) {
+  const gap = 8;
+
+  const width = (PAGE.width - PAGE.margin * 2 - gap * 3) / 4;
+
+  const height = 68;
+
+  ensureSpace(doc, height + 12, report);
+
+  const y = doc.y;
+
+  metrics.forEach((metric, i) => {
+    const x = PAGE.margin + i * (width + gap);
+
+    const palette =
+      metric.tone === "critical"
+        ? severityPalette("Critical")
+        : metric.tone === "green"
+          ? {
+              text: COLORS.green,
+              fill: COLORS.greenSoft,
+            }
+          : {
+              text: COLORS.ink,
+              fill: COLORS.soft,
+            };
+
+    doc
+      .roundedRect(x, y, width, height, 7)
+      .fillAndStroke(palette.fill, COLORS.line);
+
+    doc
+      .fillColor(COLORS.muted)
+      .font("Helvetica")
+      .fontSize(7.5)
+      .text(metric.label.toUpperCase(), x + 9, y + 10, {
+        width: width - 18,
+      });
+
+    doc
+      .fillColor(palette.text)
+      .font("Helvetica-Bold")
+      .fontSize(metric.value.length > 12 ? 15 : 18)
+      .text(metric.value, x + 9, y + 28, {
+        width: width - 18,
+      });
+
+    if (metric.note) {
+      doc
+        .fillColor(COLORS.muted)
+        .font("Helvetica")
+        .fontSize(6.8)
+        .text(metric.note, x + 9, y + 50, {
+          width: width - 18,
+        });
+    }
+  });
+
+  doc.y = y + height + 14;
+
+  doc.x = PAGE.margin;
+}
+
+function drawSeverityBanner(doc, report, loss, severity, confidence) {
+  ensureSpace(doc, 76, report);
+
+  const palette = severityPalette(severity);
+
+  const x = PAGE.margin;
+  const y = doc.y;
+
+  const w = PAGE.width - PAGE.margin * 2;
+
+  doc.roundedRect(x, y, w, 68, 8).fillAndStroke(palette.fill, palette.text);
+
+  doc
+    .fillColor(palette.text)
+    .font("Helvetica-Bold")
+    .fontSize(8)
+    .text(`${severity.toUpperCase()} DETECTION`, x + 14, y + 11);
+
+  doc
+    .fillColor(COLORS.ink)
+    .font("Helvetica-Bold")
+    .fontSize(20)
+    .text(`${fixed(loss)}%`, x + 14, y + 27);
+
+  doc
+    .fillColor(COLORS.muted)
+    .font("Helvetica")
+    .fontSize(8)
+    .text("vegetation loss", x + 73, y + 34);
+
+  doc
+    .fillColor(COLORS.muted)
+    .font("Helvetica")
+    .fontSize(8)
+    .text(
+      `Overall model confidence: ${fixed(confidence, 1)}%`,
+      x + w - 190,
+      y + 33,
+      {
+        width: 176,
+        align: "right",
+      },
+    );
+
+  doc.y = y + 82;
+  doc.x = PAGE.margin;
+}
+
+function drawTable(doc, report, columns, rows, options = {}) {
+  const x = options.x ?? PAGE.margin;
+
+  const width = options.width ?? PAGE.width - PAGE.margin * 2;
+
+  const headerH = options.headerH || 23;
+
+  const rowH = options.rowH || 22;
+
+  const fontSize = options.fontSize || 8;
+
+  const widths = options.widths || columns.map(() => width / columns.length);
+
+  const align = options.align || columns.map(() => "left");
+
+  const totalRows = rows.length;
+
+  const drawHeader = () => {
+    const y = doc.y;
+
+    doc.rect(x, y, width, headerH).fill(COLORS.greenDark);
+
+    let cx = x;
+
+    columns.forEach((column, i) => {
+      doc
+        .fillColor(COLORS.white)
+        .font("Helvetica-Bold")
+        .fontSize(7.2)
+        .text(column, cx + 6, y + 7, {
+          width: widths[i] - 12,
+          align: align[i] || "left",
+        });
+
+      cx += widths[i];
+    });
+
+    doc.y = y + headerH;
+
+    doc.x = PAGE.margin;
+  };
+
+  drawHeader();
+
+  rows.forEach((row, rowIndex) => {
+    if (doc.y + rowH > PAGE.height - 52) {
+      addPage(doc, report);
+      drawHeader();
+    }
+
+    const y = doc.y;
+
+    doc
+      .rect(x, y, width, rowH)
+      .fillAndStroke(
+        rowIndex % 2 === 0 ? COLORS.white : COLORS.soft,
+        COLORS.line,
+      );
+
+    let cx = x;
+
+    row.forEach((value, i) => {
+      doc
+        .fillColor(COLORS.ink)
+        .font("Helvetica")
+        .fontSize(fontSize)
+        .text(String(value ?? "—"), cx + 6, y + 6, {
+          width: widths[i] - 12,
+          align: align[i] || "left",
+          lineBreak: false,
+          ellipsis: true,
+        });
+
+      cx += widths[i];
+    });
+
+    doc.y = y + rowH;
+
+    doc.x = PAGE.margin;
+  });
+
+  doc.y += 12;
+  doc.x = PAGE.margin;
+
+  return totalRows;
+}
+
+function drawImagePanel(doc, report, image, title, caption, height = 190) {
+  if (!image) return false;
+
+  ensureSpace(doc, height + 48, report);
+
+  const x = PAGE.margin;
+  const y = doc.y;
+
+  const w = PAGE.width - PAGE.margin * 2;
+
+  doc
+    .fillColor(COLORS.ink)
+    .font("Helvetica-Bold")
+    .fontSize(8.5)
+    .text(title.toUpperCase(), x, y, {
+      width: w,
+      align: "left",
+    });
+
+  const boxY = y + 17;
+
+  doc
+    .roundedRect(x, boxY, w, height, 7)
+    .fillAndStroke(COLORS.soft, COLORS.line);
+
+  try {
+    doc.image(image, x + 1, boxY + 1, {
+      fit: [w - 2, height - 2],
+      align: "center",
+      valign: "center",
+    });
+  } catch {
+    doc
+      .fillColor(COLORS.muted)
+      .font("Helvetica")
+      .fontSize(8)
+      .text(
+        "Image unavailable for this report.",
+        x + 12,
+        boxY + height / 2 - 5,
+        {
+          width: w - 24,
+          align: "center",
+        },
+      );
+  }
+
+  if (caption) {
+    doc
+      .fillColor(COLORS.muted)
+      .font("Helvetica")
+      .fontSize(7.5)
+      .text(caption, x, boxY + height + 6, {
+        width: w,
+        align: "left",
+      });
+
+    doc.y = boxY + height + 23;
+  } else {
+    doc.y = boxY + height + 12;
+  }
+
+  doc.x = PAGE.margin;
+
+  return true;
+}
+
+function buildAnalysisSnapshot(analysisResult) {
+  if (!analysisResult) return null;
+
+  return {
+    mode: analysisResult.mode || null,
+
+    region: analysisResult.region || null,
+
+    regionId: analysisResult.regionId || null,
+
+    classification: analysisResult.classification || null,
+
+    vegetationPct: analysisResult.vegetationPct ?? null,
+
+    lossPercentage: analysisResult.lossPercentage ?? null,
+
+    affectedAreaHectares: analysisResult.affectedAreaHectares ?? null,
+
+    severityScore: analysisResult.severityScore ?? null,
+
+    confidence: analysisResult.confidence ?? null,
+
+    beforeConfidence: analysisResult.beforeConfidence ?? null,
+
+    afterConfidence: analysisResult.afterConfidence ?? null,
+
+    pixelsLost: analysisResult.pixelsLost ?? null,
+
+    totalPixels: analysisResult.totalPixels ?? null,
+
+    spotCount: analysisResult.spotCount ?? null,
+
+    lostTreeSpots: Array.isArray(analysisResult.lostTreeSpots)
+      ? analysisResult.lostTreeSpots.slice(0, 200).map((spot) => ({
+          id: spot.id,
+          centroid_x: spot.centroid_x,
+          centroid_y: spot.centroid_y,
+          pixels_lost: spot.pixels_lost,
+        }))
+      : [],
+
+    resultImageB64: analysisResult.resultImageB64 || null,
+
+    beforeImageUrl: analysisResult.beforeImageUrl || null,
+
+    afterImageUrl: analysisResult.afterImageUrl || null,
+
+    imageUrl: analysisResult.imageUrl || null,
+  };
+}
+
+exports.list = async (req, res) => {
+  const reports = await Report.find()
+    .populate("region", "name")
+    .populate("generatedBy", "fullName email")
+    .sort({
+      createdAt: -1,
+    });
+
+  res.json({
+    reports,
+  });
+};
+
+exports.generate = async (req, res) => {
+  try {
+    const {
+      regionId,
+      periodStart,
+      periodEnd,
+      title,
+      classification = "Restricted",
+      analysisResult,
+      alertId,
+    } = req.body;
+
+    const start = new Date(periodStart || new Date(Date.now() - 30 * 86400000));
+
+    const end = new Date(periodEnd || new Date());
+
+    let evidenceAlerts = [];
+    let summary;
+    let region = null;
+
+    if (analysisResult) {
+      if (analysisResult.regionId) {
+        region = await Region.findById(analysisResult.regionId).catch(
+          () => null,
+        );
+      }
+
+      if (!region && analysisResult.region) {
+        region = await Region.findOne({
+          $or: [
+            {
+              name: analysisResult.region,
+            },
+            {
+              slug: analysisResult.region,
+            },
+          ],
+        }).catch(() => null);
+      }
+
+      const loss = Number(analysisResult.lossPercentage || 0);
+
+      const area = Number(analysisResult.affectedAreaHectares || 0);
+
+      const conf = Number(analysisResult.confidence || 0);
+
+      const sev = severityForLoss(loss);
+
+      evidenceAlerts = [
+        {
+          alert: alertId || null,
+
+          lossPercentage: loss,
+
+          affectedAreaHectares: area,
+
+          confidenceScore: conf,
+
+          severity: sev,
+
+          statusAtGeneration: "Pending",
+
+          coordinates: [0, 0],
+        },
+      ];
+
+      summary = {
+        totalAlerts: 1,
+
+        totalAffectedAreaHectares: +area.toFixed(1),
+
+        averageLossPercentage: +loss.toFixed(2),
+
+        criticalCount: sev === "Critical" ? 1 : 0,
+      };
+    } else {
+      const filter = {
+        detectedAt: {
+          $gte: start,
+          $lte: end,
+        },
+      };
+
+      if (regionId && regionId !== "All") {
+        const mongoose = require("mongoose");
+
+        if (mongoose.Types.ObjectId.isValid(regionId)) {
+          region = await Region.findById(regionId).catch(() => null);
+        }
+
+        if (!region) {
+          region = await Region.findOne({
+            $or: [
+              {
+                name: regionId,
+              },
+              {
+                slug: regionId,
+              },
+            ],
+          }).catch(() => null);
+        }
+
+        if (!region) {
+          return res.status(404).json({
+            message: `Region "${regionId}" not found. Make sure regions are seeded in the database.`,
+          });
+        }
+
+        filter.region = region._id;
+      }
+
+      const alerts = await Alert.find(filter).populate("region", "name").sort({
+        detectedAt: -1,
+      });
+
+      evidenceAlerts = alerts.map((a) => ({
+        alert: a._id,
+
+        lossPercentage: a.lossPercentage,
+
+        affectedAreaHectares: a.affectedAreaHectares,
+
+        confidenceScore: a.confidenceScore,
+
+        severity: a.severity,
+
+        statusAtGeneration: a.status,
+
+        coordinates: a.location?.coordinates || [0, 0],
+      }));
+
+      summary = {
+        totalAlerts: alerts.length,
+
+        totalAffectedAreaHectares: +alerts
+          .reduce((s, a) => s + (a.affectedAreaHectares || 0), 0)
+          .toFixed(1),
+
+        averageLossPercentage: +(
+          alerts.reduce((s, a) => s + (a.lossPercentage || 0), 0) /
+          Math.max(alerts.length, 1)
+        ).toFixed(2),
+
+        criticalCount: alerts.filter((a) => a.severity === "Critical").length,
+      };
+    }
+
+    const now = new Date();
+
+    const reportId = `VN-${now.getFullYear()}-${String(
+      Math.floor(Math.random() * 900) + 100,
+    )}`;
+
+    const reportTitle =
+      title ||
+      (analysisResult
+        ? `Analysis report — ${
+            analysisResult.region || "Unspecified"
+          } (${now.toLocaleDateString("en-IN")})`
+        : `${region?.name || "All regions"} forest monitoring report`);
+
+    const report = await Report.create({
+      reportId,
+
+      title: reportTitle,
+
+      region: region?._id || null,
+
+      scope: region ? "single-region" : "all-regions",
+
+      periodStart: start,
+
+      periodEnd: end,
+
+      evidenceAlerts,
+
+      summary,
+
+      analysisSnapshot: buildAnalysisSnapshot(analysisResult),
+
+      classification,
+
+      generatedBy: req.user._id,
+
+      generatedByLabel: req.user.fullName,
+
+      designationAtGeneration:
+        req.user.designation || "Forest Operations Official",
+    });
+
+    await audit({
+      action: "report.generated",
+
+      actor: req.user._id,
+
+      actorLabel: req.user.fullName,
+
+      targetType: "Report",
+
+      targetId: report._id,
+
+      metadata: {
+        reportId,
+      },
+    });
+
+    await report.populate("region", "name");
+
+    res.status(201).json({
+      report,
+    });
+  } catch (err) {
+    console.error("[reportController] generate error:", err);
+
+    res.status(500).json({
+      message: err.message || "Failed to generate report",
+    });
+  }
+};
+
+exports.download = async (req, res) => {
+  try {
+    const report = await Report.findById(req.params.id).populate(
+      "region",
+      "name",
+    );
+
+    if (!report) {
+      return res.status(404).json({
+        message: "Report not found",
+      });
+    }
+
+    const doc = new PDFDocument({
+      size: "A4",
+      margin: PAGE.margin,
+      bufferPages: true,
+    });
+
+    res.setHeader("Content-Type", "application/pdf");
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${report.reportId}.pdf"`,
+    );
+
+    doc.pipe(res);
+
+    drawHeader(doc, report);
+
+    doc.x = PAGE.margin;
+
+    doc.y = 80;
+
+    const analysis = report.analysisSnapshot;
+
+    const isAnalysisReport = !!analysis;
+
+    const loss = Number(
+      analysis?.lossPercentage ?? report.summary?.averageLossPercentage ?? 0,
+    );
+
+    const severity = analysis
+      ? severityForLoss(loss)
+      : report.evidenceAlerts?.[0]?.severity || severityForLoss(loss);
+
+    const confidence = Number(
+      analysis?.confidence ?? report.evidenceAlerts?.[0]?.confidenceScore ?? 0,
+    );
+
+    doc
+      .fillColor(COLORS.muted)
+      .font("Helvetica-Bold")
+      .fontSize(8)
+      .text("OFFICIAL ANALYSIS RECORD", PAGE.margin, doc.y, {
+        width: PAGE.width - PAGE.margin * 2,
+        align: "left",
+        lineBreak: false,
+      });
+
+    doc.moveDown(0.35);
+
+    doc.x = PAGE.margin;
+
+    doc
+      .fillColor(COLORS.ink)
+      .font("Helvetica-Bold")
+      .fontSize(22)
+      .text(report.title, PAGE.margin, doc.y, {
+        width: PAGE.width - PAGE.margin * 2,
+        align: "left",
+        lineBreak: true,
+      });
+
+    doc.moveDown(0.7);
+
+    doc.x = PAGE.margin;
+
+    drawMetaGrid(doc, report);
+
+    sectionTitle(
+      doc,
+      "Executive summary",
+      "A consolidated view of the detection generated from the selected analysis.",
+      report,
+    );
+
+    if (isAnalysisReport) {
+      drawMetricCards(doc, report, [
+        {
+          label: "Vegetation loss",
+
+          value: `${fixed(loss)}%`,
+
+          tone: "critical",
+        },
+
+        {
+          label: "Model confidence",
+
+          value: `${fixed(confidence, 1)}%`,
+
+          tone: "green",
+        },
+
+        {
+          label: "Pixels lost",
+
+          value: number(analysis.pixelsLost),
+
+          note: `of ${number(analysis.totalPixels)} total`,
+        },
+
+        {
+          label: "Clusters detected",
+
+          value: number(analysis.spotCount),
+        },
+      ]);
+
+      drawSeverityBanner(doc, report, loss, severity, confidence);
+
+      const summaryRows = [
+        ["Affected area", `${fixed(analysis.affectedAreaHectares, 1)} ha`],
+
+        ["Before confidence", `${fixed(analysis.beforeConfidence, 1)}%`],
+
+        ["After confidence", `${fixed(analysis.afterConfidence, 1)}%`],
+
+        [
+          "Severity score",
+          analysis.severityScore == null ? "—" : fixed(analysis.severityScore),
+        ],
+
+        ["Total pixels", number(analysis.totalPixels)],
+
+        ["Total pixels lost", number(analysis.pixelsLost)],
+      ];
+
+      drawTable(doc, report, ["Analysis metric", "Value"], summaryRows, {
+        widths: [300, 210],
+
+        align: ["left", "right"],
+      });
+    } else {
+      drawMetricCards(doc, report, [
+        {
+          label: "Total events",
+
+          value: number(report.summary?.totalAlerts),
+        },
+
+        {
+          label: "Affected area",
+
+          value: `${fixed(report.summary?.totalAffectedAreaHectares, 1)} ha`,
+        },
+
+        {
+          label: "Average loss",
+
+          value: `${fixed(report.summary?.averageLossPercentage)}%`,
+        },
+
+        {
+          label: "Critical events",
+
+          value: number(report.summary?.criticalCount),
+
+          tone: "critical",
+        },
+      ]);
+
+      const rows = (report.evidenceAlerts || [])
+        .slice(0, 40)
+        .map((e, i) => [
+          i + 1,
+
+          e.severity,
+
+          `${fixed(e.lossPercentage)}%`,
+
+          `${fixed(e.affectedAreaHectares, 1)} ha`,
+
+          `${fixed(e.confidenceScore, 1)}%`,
+
+          e.statusAtGeneration,
+        ]);
+
+      drawTable(
+        doc,
+        report,
+        ["#", "Severity", "Loss", "Area", "Confidence", "Status"],
+
+        rows.length ? rows : [["—", "No evidence", "—", "—", "—", "—"]],
+
+        {
+          widths: [28, 88, 75, 80, 90, 149],
+
+          align: ["center", "left", "right", "right", "right", "left"],
+        },
+      );
+    }
+
+    if (isAnalysisReport) {
+      sectionTitle(
+        doc,
+        "AI analysis evidence",
+        "Visual evidence produced by the change-detection pipeline.",
+        report,
+      );
+
+      const beforePath = uploadImagePath(analysis.beforeImageUrl);
+
+      const afterPath = uploadImagePath(analysis.afterImageUrl);
+
+      const resultBuffer = decodeBase64Image(analysis.resultImageB64);
+
+      if (beforePath && afterPath) {
+        const gap = 10;
+
+        const w = (PAGE.width - PAGE.margin * 2 - gap) / 2;
+
+        const h = 170;
+
+        ensureSpace(doc, h + 42, report);
+
+        const y = doc.y;
+
+        doc
+          .fillColor(COLORS.ink)
+          .font("Helvetica-Bold")
+          .fontSize(8)
+          .text("BEFORE", PAGE.margin, y, {
+            width: w,
+            align: "left",
+          });
+
+        doc.text("AFTER", PAGE.margin + w + gap, y, {
+          width: w,
+          align: "left",
+        });
+
+        const boxY = y + 16;
+
+        doc
+          .roundedRect(PAGE.margin, boxY, w, h, 7)
+          .fillAndStroke(COLORS.soft, COLORS.line);
+
+        doc
+          .roundedRect(PAGE.margin + w + gap, boxY, w, h, 7)
+          .fillAndStroke(COLORS.soft, COLORS.line);
+
+        try {
+          doc.image(beforePath, PAGE.margin + 1, boxY + 1, {
+            fit: [w - 2, h - 2],
+
+            align: "center",
+
+            valign: "center",
+          });
+        } catch {}
+
+        try {
+          doc.image(afterPath, PAGE.margin + w + gap + 1, boxY + 1, {
+            fit: [w - 2, h - 2],
+
+            align: "center",
+
+            valign: "center",
+          });
+        } catch {}
+
+        doc.y = boxY + h + 15;
+
+        doc.x = PAGE.margin;
+      }
+
+      if (resultBuffer) {
+        drawImagePanel(
+          doc,
+          report,
+          resultBuffer,
+          "AI deforestation overlay",
+          "Red overlay indicates vegetation detected before but absent after.",
+          220,
+        );
+      }
+
+      sectionTitle(
+        doc,
+        "Detection confidence",
+        "Confidence values returned by the analysis model.",
+        report,
+      );
+
+      drawTable(
+        doc,
+        report,
+        ["Model measure", "Value"],
+
+        [
+          [
+            "Before-image confidence",
+            `${fixed(analysis.beforeConfidence, 1)}%`,
+          ],
+
+          ["After-image confidence", `${fixed(analysis.afterConfidence, 1)}%`],
+
+          ["Overall model confidence", `${fixed(analysis.confidence, 1)}%`],
+        ],
+
+        {
+          widths: [350, 160],
+
+          align: ["left", "right"],
+        },
+      );
+
+      sectionTitle(
+        doc,
+        "Deforestation cluster analysis",
+        "Cluster-level evidence returned by the AI pipeline, including the pixel coordinates shown in the analysis output.",
+        report,
+      );
+
+      const spots = Array.isArray(analysis.lostTreeSpots)
+        ? analysis.lostTreeSpots
+        : [];
+
+      const sortedSpots = [...spots].sort(
+        (a, b) => Number(b.pixels_lost || 0) - Number(a.pixels_lost || 0),
+      );
+
+      const rows = sortedSpots.map((spot, index) => [
+        spot.id ?? index + 1,
+
+        number(spot.centroid_x),
+
+        number(spot.centroid_y),
+
+        number(spot.pixels_lost),
+      ]);
+
+      drawTable(
+        doc,
+        report,
+        ["Cluster", "Pixel X", "Pixel Y", "Pixels lost"],
+
+        rows.length ? rows : [["—", "—", "—", "—"]],
+
+        {
+          widths: [105, 125, 125, 155],
+
+          align: ["center", "right", "right", "right"],
+        },
+      );
+
+      if (sortedSpots.length) {
+        const largest = sortedSpots[0];
+
+        const average =
+          sortedSpots.reduce(
+            (sum, spot) => sum + Number(spot.pixels_lost || 0),
+            0,
+          ) / sortedSpots.length;
+
+        sectionTitle(
+          doc,
+          "Derived cluster statistics",
+          "Calculated from the cluster records returned by the analysis.",
+          report,
+        );
+
+        drawMetricCards(doc, report, [
+          {
+            label: "Largest cluster",
+
+            value: number(largest.pixels_lost),
+
+            note: `Cluster #${largest.id}`,
+          },
+
+          {
+            label: "Average cluster",
+
+            value: number(Math.round(average)),
+
+            note: "pixels lost",
+          },
+
+          {
+            label: "Clusters listed",
+
+            value: number(sortedSpots.length),
+          },
+
+          {
+            label: "Total pixels lost",
+
+            value: number(analysis.pixelsLost),
+          },
+        ]);
+      }
+
+      sectionTitle(
+        doc,
+        "Interpretation",
+        "Values below are a factual restatement of the generated analysis rather than an independent assessment.",
+        report,
+      );
+
+      const interpretation = [
+        `The analysis detected ${number(
+          analysis.spotCount,
+        )} deforestation clusters in ${
+          analysis.region || "the selected region"
+        }.`,
+        `The reported vegetation loss is ${fixed(
+          analysis.lossPercentage,
+        )}%, corresponding to ${number(analysis.pixelsLost)} lost pixels.`,
+        `The model reported ${fixed(
+          analysis.beforeConfidence,
+          1,
+        )}% confidence for the before image and ${fixed(
+          analysis.afterConfidence,
+          1,
+        )}% for the after image, with an overall confidence of ${fixed(
+          analysis.confidence,
+          1,
+        )}%.`,
+        `The reported affected area is ${fixed(
+          analysis.affectedAreaHectares,
+          1,
+        )} hectares.`,
+      ];
+
+      interpretation.forEach((line) => {
+        ensureSpace(doc, 30, report);
+
+        doc
+          .fillColor(COLORS.ink)
+          .font("Helvetica")
+          .fontSize(9)
+          .text(`• ${line}`, PAGE.margin, doc.y, {
+            width: PAGE.width - PAGE.margin * 2,
+            lineGap: 3,
+          });
+
+        doc.moveDown(0.35);
+
+        doc.x = PAGE.margin;
+      });
+    }
+
+    const noteHeight = 58;
+    const bottomLimit = PAGE.height - 52;
+
+    if (doc.y + noteHeight <= bottomLimit) {
+      const noteY = doc.y;
+
+      doc
+        .roundedRect(
+          PAGE.margin,
+          noteY,
+          PAGE.width - PAGE.margin * 2,
+          noteHeight,
+          7,
+        )
+        .fillAndStroke(COLORS.soft, COLORS.line);
+
+      doc
+        .fillColor(COLORS.greenDark)
+        .font("Helvetica-Bold")
+        .fontSize(8)
+        .text("REPORT NOTE", PAGE.margin + 12, noteY + 10, {
+          width: PAGE.width - PAGE.margin * 2 - 24,
+          align: "left",
+          lineBreak: false,
+        });
+
+      doc
+        .fillColor(COLORS.muted)
+        .font("Helvetica")
+        .fontSize(7.5)
+        .text(
+          `This document was generated automatically by VanaNetra. Classification: ${report.classification}. Pixel X/Y values are image-space coordinates and are not latitude/longitude.`,
+          PAGE.margin + 12,
+          noteY + 24,
+          {
+            width: PAGE.width - PAGE.margin * 2 - 24,
+            lineGap: 2,
+            lineBreak: true,
+          },
+        );
+    }
+
+    const range = doc.bufferedPageRange();
+
+    for (let i = range.start; i < range.start + range.count; i++) {
+      doc.switchToPage(i);
+
+      drawFooter(doc, report, i - range.start + 1);
+    }
+
+    doc.end();
+
+    await audit({
+      action: "report.downloaded",
+
+      actor: req.user._id,
+
+      actorLabel: req.user.fullName,
+
+      targetType: "Report",
+
+      targetId: report._id,
+
+      metadata: {
+        reportId: report.reportId,
+      },
+    });
+  } catch (err) {
+    console.error("[reportController] download error:", err);
+
+    if (!res.headersSent) {
+      res.status(500).json({
+        message: err.message || "Failed to generate PDF",
+      });
+    }
+  }
+};
