@@ -58,14 +58,13 @@ function Analyze() {
   const beforeInputRef = useRef(null);
   const afterInputRef = useRef(null);
 
-  const regions = [
-    "Bandhavgarh Belt",
-    "Kaziranga Corridor",
-    "Nilgiri Biosphere",
-    "Sundarbans Delta",
-    "Western Ghats Reserve",
-  ];
-
+const regions = [
+  "Papikondalu Reserve",    
+  "Kaziranga Corridor",
+  "Nilgiri Biosphere",     
+  "Sundarbans Delta",
+  "Western Ghats Reserve",
+];
   const handleFile = (file) => {
     if (!file) return;
 
