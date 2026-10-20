@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { jsPDF } from "jspdf";
+import { api } from "../lib/api";
 import {
   Download,
   FilePlus2,
