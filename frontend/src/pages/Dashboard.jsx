@@ -1,4 +1,6 @@
 import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { api, clearSession } from "../lib/api";
 import {
   Bell,
   Map,
@@ -42,12 +44,28 @@ function Dashboard() {
     },
   ];
 
-  const user = JSON.parse(
-    localStorage.getItem("forestwatch_user") || "{}"
-  );
+  const user = (() => {
+    try {
+      return JSON.parse(
+        localStorage.getItem("vananetra_user") ||
+        localStorage.getItem("forestwatch_user") ||
+        "{}"
+      );
+    } catch {
+      return {};
+    }
+  })();
 
-  const signOut = () => {
-    localStorage.removeItem("forestwatch_user");
+  const [summary, setSummary] = useState(null);
+
+  const signOut = async () => {
+    try {
+      await api("/auth/logout", {
+        method: "POST",
+      });
+    } catch {}
+
+    clearSession();
     navigate("/login");
   };
 
@@ -59,21 +77,21 @@ function Dashboard() {
 
         {/* LOGO */}
         <Link to="/dashboard/alerts">
-        <div className="flex h-[72px] items-center gap-3 border-b border-[#e2e8e4] px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
-            <Leaf size={19} />
-          </div>
+          <div className="flex h-[72px] items-center gap-3 border-b border-[#e2e8e4] px-5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
+              <Leaf size={19} className="text-white" />
+            </div>
 
-          <div>
-            <p className="font-semibold">
-              VanaNetra
-            </p>
+            <div>
+              <p className="font-semibold">
+                VanaNetra
+              </p>
 
-            <p className="text-[9px] uppercase tracking-[0.2em] text-gray-600">
-              Officials Console
-            </p>
+              <p className="text-[9px] uppercase tracking-[0.2em] text-gray-600">
+                Officials Console
+              </p>
+            </div>
           </div>
-        </div>
         </Link>
 
         {/* NAVIGATION */}
@@ -124,7 +142,6 @@ function Dashboard() {
             </div>
 
             <div className="min-w-0 flex-1">
-
               <p className="truncate text-sm text-gray-800">
                 {user.name || "Forest Official"}
               </p>
@@ -132,7 +149,6 @@ function Dashboard() {
               <p className="mt-0.5 truncate text-[11px] text-gray-500">
                 {user.email || "admin1@gmail.com"}
               </p>
-
             </div>
 
             <ChevronRight
