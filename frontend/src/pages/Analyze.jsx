@@ -38,6 +38,9 @@ function Analyze() {
 
   const [mode, setMode] = useState("landcover");
   const [region, setRegion] = useState("");
+  const [coordLat, setCoordLat] = useState("");
+  const [coordLng, setCoordLng] = useState("");
+  const [coordError, setCoordError] = useState("");
 
   const [image, setImage] = useState(null);
   const [preview, setPreview] = useState(null);
@@ -185,6 +188,7 @@ const regions = [
     setStatus("idle");
     setReportStatus("idle");
     setAlertId(null);
+    setCoordError("");
   };
 
   const handleAnalyze = async () => {
@@ -194,6 +198,21 @@ const regions = [
 
     if (mode === "change" && (!beforeImage || !afterImage)) {
       return;
+    }
+
+    // Validate coordinates if provided (change detection only)
+    if (mode === "change" && (coordLat !== "" || coordLng !== "")) {
+      const lat = parseFloat(coordLat);
+      const lng = parseFloat(coordLng);
+      if (
+        isNaN(lat) || isNaN(lng) ||
+        lat < -90 || lat > 90 ||
+        lng < -180 || lng > 180
+      ) {
+        setCoordError("Enter valid coordinates — latitude −90 to 90, longitude −180 to 180.");
+        return;
+      }
+      setCoordError("");
     }
 
     setStatus("analyzing");
@@ -208,6 +227,11 @@ const regions = [
 
       if (region) {
         form.append("region", region);
+      }
+
+      if (mode === "change" && coordLat !== "" && coordLng !== "") {
+        form.append("latitude", coordLat);
+        form.append("longitude", coordLng);
       }
 
       if (image) {
@@ -552,6 +576,81 @@ const regions = [
                     inputRef={afterInputRef}
                   />
                 </div>
+
+                {/* Coordinate input for legal zone check */}
+                <div className="mt-4 rounded-lg border border-[#dbe4de] bg-[#f6f9f7] p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <MapPin size={14} className="text-emerald-600 shrink-0" />
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-gray-500">
+                      Location coordinates{" "}
+                      <span className="normal-case font-normal tracking-normal text-gray-400">
+                        — optional, for legal zone check
+                      </span>
+                    </p>
+                  </div>
+
+                  <p className="mb-3 text-xs text-gray-500 leading-relaxed">
+                    Enter the latitude and longitude of the area being analyzed.
+                    The system will cross-check these coordinates against the legal
+                    cutting zones database to determine if deforestation is
+                    permitted or illegal.
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                        Latitude
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="-90"
+                        max="90"
+                        placeholder="e.g. 17.3850"
+                        value={coordLat}
+                        onChange={(e) => {
+                          setCoordLat(e.target.value);
+                          setCoordError("");
+                        }}
+                        className="w-full rounded-lg border border-[#c9d6cd] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1.5 block text-xs font-medium text-gray-600">
+                        Longitude
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="-180"
+                        max="180"
+                        placeholder="e.g. 78.4867"
+                        value={coordLng}
+                        onChange={(e) => {
+                          setCoordLng(e.target.value);
+                          setCoordError("");
+                        }}
+                        className="w-full rounded-lg border border-[#c9d6cd] bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  {coordError && (
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-red-600">
+                      <AlertTriangle size={12} />
+                      {coordError}
+                    </div>
+                  )}
+
+                  {coordLat !== "" && coordLng !== "" && !coordError && (
+                    <p className="mt-2 text-xs text-emerald-700">
+                      📍 Will verify ({parseFloat(coordLat).toFixed(4)},{" "}
+                      {parseFloat(coordLng).toFixed(4)}) against legal zones
+                      database.
+                    </p>
+                  )}
+                </div>
               </div>
             )}
 
@@ -709,6 +808,20 @@ const regions = [
                         "After confidence",
                         `${result.afterConfidence}%`,
                       ],
+                      ...(result.checkedCoordinates
+                        ? [
+                            [
+                              "Checked coordinates",
+                              `${result.checkedCoordinates.lat.toFixed(4)}, ${result.checkedCoordinates.lng.toFixed(4)}`,
+                            ],
+                            [
+                              "Coordinate source",
+                              result.checkedCoordinates.source === "user-supplied"
+                                ? "User-provided"
+                                : "Region center",
+                            ],
+                          ]
+                        : []),
                     ].map(([label, value]) => (
                       <div
                         key={label}
