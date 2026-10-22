@@ -125,6 +125,7 @@ exports.analyze = async (req, res) => {
 
   try {
     ai = await callAI(req.files, mode);
+    
   } catch (err) {
     console.error("AI service error:", err.message);
 
@@ -137,9 +138,25 @@ exports.analyze = async (req, res) => {
 
   let savedAlert = null;
 
-  if (mode === "change" && result.lossPercentage > 0 && region) {
+  if (mode === "change" && result.lossPercentage > 0) {
     try {
-      const coords = region.center?.coordinates || [0, 0];
+      // Prefer user-supplied coordinates; fall back to region center
+      let coords;
+      const userLat = parseFloat(req.body.latitude);
+      const userLng = parseFloat(req.body.longitude);
+
+      if (!isNaN(userLat) && !isNaN(userLng)) {
+        coords = [userLng, userLat]; // GeoJSON is [lng, lat]
+        result.checkedCoordinates = { lat: userLat, lng: userLng, source: "user-supplied" };
+      } else if (region) {
+        coords = region.center?.coordinates || [0, 0];
+        result.checkedCoordinates = { lat: coords[1], lng: coords[0], source: "region-center" };
+      } else {
+        // No region and no user coords — skip legal check
+        result.legalStatus = "unverified";
+        result.legalStatusNote = "No coordinates provided and no region selected.";
+        return res.json({ result, alertId: null });
+      }
 
       const { isLegal, zone } = await verifyLegalZone(coords);
 
@@ -162,13 +179,14 @@ exports.analyze = async (req, res) => {
             permitNumber: zone.permitNumber,
             lossPercentage: result.lossPercentage,
             coords,
+            coordinateSource: result.checkedCoordinates?.source,
           },
         }).catch(() => null);
       } else {
         result.legalStatus = "illegal";
 
         savedAlert = await Alert.create({
-          region: region._id,
+          region: region?._id || null,
           lossPercentage: result.lossPercentage,
           affectedAreaHectares: result.affectedAreaHectares,
           severityScore: result.severityScore,
@@ -204,7 +222,7 @@ exports.analyze = async (req, res) => {
       result.legalStatus = "unverified";
 
       savedAlert = await Alert.create({
-        region: region._id,
+        region: region?._id || null,
         lossPercentage: result.lossPercentage,
         affectedAreaHectares: result.affectedAreaHectares,
         severityScore: result.severityScore,
@@ -216,7 +234,7 @@ exports.analyze = async (req, res) => {
         afterImageUrl: result.afterImageUrl,
         location: {
           type: "Point",
-          coordinates: region.center?.coordinates || [0, 0],
+          coordinates: coords || [0, 0],
         },
         legalStatus: "unverified",
         legalVerifiedAt: new Date(),
