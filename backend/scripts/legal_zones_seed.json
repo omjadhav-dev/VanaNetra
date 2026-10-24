@@ -6,7 +6,7 @@
     "permitType": "timber-harvest",
     "permitNumber": "AP/EG/2019-20/001",
     "validFrom": "2019-04-01T00:00:00.000Z",
-    "validUntil": "2026-03-31T23:59:59.000Z",
+    "validUntil": "2027-03-31T23:59:59.000Z",
     "boundary": {
       "type": "Polygon",
       "coordinates": [
@@ -43,7 +43,7 @@
     "permitType": "timber-harvest",
     "permitNumber": "AP/KNL/2019-20/004",
     "validFrom": "2019-04-01T00:00:00.000Z",
-    "validUntil": "2026-03-31T23:59:59.000Z",
+    "validUntil": "2027-03-31T23:59:59.000Z",
     "boundary": {
       "type": "Polygon",
       "coordinates": [
