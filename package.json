@@ -1,0 +1,17 @@
+{
+  "name": "vana-netra",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VanaNetra full-stack application",
+  "scripts": {
+    "install-all": "npm install --prefix frontend && npm install --prefix backend",
+    "dev": "concurrently --names \"AI,BACKEND,FRONTEND\" --prefix-colors \"magenta,cyan,green\" \"cd ai_service && python app.py\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
+    "backend": "npm run dev --prefix backend",
+    "frontend": "npm run dev --prefix frontend",
+    "seed": "npm run seed --prefix backend",
+    "build": "npm run build --prefix frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
