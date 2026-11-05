@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-// Ordered workflow. Index in this array determines valid forward transitions.
+
 const STATUS_FLOW = [
   "Pending",
   "Under Review",
@@ -10,13 +10,7 @@ const STATUS_FLOW = [
   "Resolved",
 ];
 
-/**
- * StatusHistoryEntry (embedded, not a standalone collection)
- * -----------------------------------------------------------
- * Every status transition on an alert is appended here, never mutated —
- * this is the audit trail backing the "Audit" column / modal on the
- * Alerts dashboard and the certification section of generated reports.
- */
+
 const statusHistorySchema = new Schema(
   {
     status: {
@@ -30,8 +24,7 @@ const statusHistorySchema = new Schema(
       default: null, // null = system-generated (e.g. initial "Pending" on detection)
     },
     changedByLabel: {
-      // Denormalized display label (e.g. "System (auto-detected)"), kept
-      // even if the referenced user is later deleted or renamed.
+     
       type: String,
       required: true,
     },
@@ -47,14 +40,7 @@ const statusHistorySchema = new Schema(
   { _id: false },
 );
 
-/**
- * Alert
- * ------
- * A single deforestation detection event produced by the change-detection
- * pipeline (or, for citizen reports, submitted by a public user with
- * photographic evidence). Severity is derived from lossPercentage and
- * should be recomputed server-side rather than trusted from the client.
- */
+
 const alertSchema = new Schema(
   {
     region: {
@@ -64,8 +50,6 @@ const alertSchema = new Schema(
       index: true,
     },
 
-    // Precise point of detection, distinct from the region's center —
-    // this is what the Maps page plots and what snapshots/reports geotag.
     location: {
       type: {
         type: String,
@@ -84,7 +68,6 @@ const alertSchema = new Schema(
       default: "satellite-pipeline",
     },
 
-    // --- Measurements from the change-detection model ---
     lossPercentage: {
       type: Number,
       required: true,
@@ -97,19 +80,18 @@ const alertSchema = new Schema(
       min: 0,
     },
     severityScore: {
-      // Composite score (e.g. loss% weighted by region sensitivity).
+
       type: Number,
       required: true,
     },
     confidenceScore: {
-      // Model confidence, 0-100. Drives the confidence bar in the UI.
+
       type: Number,
       required: true,
       min: 0,
       max: 100,
     },
 
-    // Derived, not user-editable: Critical >=18%, High >=10%, Medium >=4%, else Low.
     severity: {
       type: String,
       enum: ["Low", "Medium", "High", "Critical"],
