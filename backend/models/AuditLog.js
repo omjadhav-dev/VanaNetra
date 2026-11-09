@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-
 const auditLogSchema = new Schema(
   {
     action: {
@@ -17,6 +16,10 @@ const auditLogSchema = new Schema(
         "user.role_changed",
         "region.updated",
         "analysis.run",
+        "satellite.baseline_captured",
+        "satellite.analysis_complete",
+        "satellite.manual_trigger",
+        "analysis.legal_cut_detected",
       ],
       required: true,
       index: true,
@@ -25,7 +28,7 @@ const auditLogSchema = new Schema(
     actor: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      default: null, 
+      default: null,
     },
     actorLabel: {
       type: String,
