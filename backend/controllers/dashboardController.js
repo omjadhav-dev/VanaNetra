@@ -1,4 +1,7 @@
-const { Alert, Region, Report } = require("../models");
+
+const { Alert, Region, Report, Snapshot } = require("../models");
+
+
 exports.summary = async (req, res) => {
   const [regions, alerts, area, reports, bySeverity, byMonth] =
     await Promise.all([
@@ -12,12 +15,12 @@ exports.summary = async (req, res) => {
       Alert.aggregate([
         {
           $group: {
-            _id: { $dateToString: { format: "%Y-%m", date: "$detectedAt" } },
+            _id:    { $dateToString: { format: "%Y-%m", date: "$detectedAt" } },
             alerts: { $sum: 1 },
-            area: { $sum: "$affectedAreaHectares" },
+            area:   { $sum: "$affectedAreaHectares" },
           },
         },
-        { $sort: { _id: 1 } },
+        { $sort:  { _id: 1 } },
         { $limit: 12 },
       ]),
     ]);
@@ -32,6 +35,7 @@ exports.summary = async (req, res) => {
     monthly: byMonth,
   });
 };
+
 exports.trends = async (req, res) => {
   const match = {};
   if (req.query.region && req.query.region !== "All") {
@@ -45,21 +49,74 @@ exports.trends = async (req, res) => {
     { $match: match },
     {
       $group: {
-        _id: { $dateToString: { format: "%Y-%m", date: "$detectedAt" } },
-        loss: { $avg: "$lossPercentage" },
-        area: { $sum: "$affectedAreaHectares" },
+        _id:    { $dateToString: { format: "%Y-%m", date: "$detectedAt" } },
+        loss:   { $avg: "$lossPercentage" },
+        area:   { $sum: "$affectedAreaHectares" },
         alerts: { $sum: 1 },
       },
     },
-    { $sort: { _id: 1 } },
+    { $sort:  { _id: 1 } },
     { $limit: months },
   ]);
   res.json({
     data: data.map((x) => ({
-      month: x._id,
-      loss: Number((x.loss || 0).toFixed(2)),
-      area: Number((x.area || 0).toFixed(1)),
+      month:  x._id,
+      loss:   Number((x.loss  || 0).toFixed(2)),
+      area:   Number((x.area  || 0).toFixed(1)),
       alerts: x.alerts,
     })),
+  });
+};
+
+
+exports.monitorStatus = async (req, res) => {
+  const regions = await Region.find({ isActive: true }).select(
+    "name lastAnalyzedAt monitoringIntervalDays"
+  );
+
+  // Get region IDs that have a before snapshot (baseline established)
+  const baselineRegionIds = await Snapshot.distinct("region", { type: "before" });
+  const baselineSet = new Set(baselineRegionIds.map((id) => id.toString()));
+
+  const msPerDay = 1000 * 60 * 60 * 24;
+  const now      = Date.now();
+
+  const regionStatuses = regions.map((r) => {
+    const hasBaseline    = baselineSet.has(r._id.toString());
+    const intervalDays   = r.monitoringIntervalDays || 15;
+    const lastAnalyzedAt = r.lastAnalyzedAt;
+
+    let nextScheduledAt = null;
+    let daysSinceLast   = null;
+    let status          = "pending_baseline";
+
+    if (lastAnalyzedAt) {
+      daysSinceLast    = Math.floor((now - lastAnalyzedAt.getTime()) / msPerDay);
+      nextScheduledAt  = new Date(lastAnalyzedAt.getTime() + intervalDays * msPerDay);
+      status           = daysSinceLast >= intervalDays ? "due" : "ok";
+    }
+
+    return {
+      _id:                    r._id,
+      name:                   r.name,
+      lastAnalyzedAt:         lastAnalyzedAt || null,
+      monitoringIntervalDays: intervalDays,
+      nextScheduledAt,
+      daysSinceLast,
+      hasBaseline,
+      status,
+    };
+  });
+
+  // Most recent pipeline run across all regions
+  const lastRunAt = regions
+    .filter((r) => r.lastAnalyzedAt)
+    .sort((a, b) => b.lastAnalyzedAt - a.lastAnalyzedAt)[0]?.lastAnalyzedAt || null;
+
+  res.json({
+    totalActive:    regions.length,
+    totalMonitored: baselineSet.size,
+    lastRunAt,
+    regions:        regionStatuses,
   });
 };
