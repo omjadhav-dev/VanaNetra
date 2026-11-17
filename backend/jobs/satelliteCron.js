@@ -1,7 +1,7 @@
-
 const fs = require("fs");
 const path = require("path");
 const FormData = require("form-data");
+const os = require("os");
 
 const fetch = (...args) =>
   import("node-fetch").then(({ default: f }) => f(...args));
@@ -14,17 +14,31 @@ const { fetchAndSaveTile } = require("../services/sentinelService");
 
 const AI_URL = process.env.AI_SERVICE_URL || "http://localhost:5001";
 
-const CRON_SCHEDULE = "0 30 0 * * *";
+const CRON_SCHEDULE = "0 0 6 * * *";
 
-/**
- * Send before + after image files to the Flask AI service.
- * Reuses the existing FormData/fetch pattern from analysisController.js.
- *
- * @param {string} beforePath - Absolute path to before PNG on disk
- * @param {string} afterPath  - Absolute path to after PNG on disk
- * @param {string} zoneId     - Region ID string (for logging in Flask)
- * @returns {Promise<object>} - AI service response JSON
- */
+async function downloadTempFile(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to download image from ${url}: ${res.status}`);
+
+  const buffer = Buffer.from(await res.arrayBuffer());
+  const tmpPath = path.join(os.tmpdir(), `vana_before_${Date.now()}.png`);
+  fs.writeFileSync(tmpPath, buffer);
+  return tmpPath;
+}
+
+
+async function resolveImagePath(imageUrl) {
+  if (imageUrl.startsWith("/uploads")) {
+    return path.join(__dirname, "..", imageUrl);
+  }
+  if (imageUrl.startsWith("http://") || imageUrl.startsWith("https://")) {
+    return await downloadTempFile(imageUrl);
+  }
+
+  return path.join(__dirname, "..", imageUrl);
+}
+
+
 async function callAISentinel(beforePath, afterPath, zoneId) {
   const form = new FormData();
   form.append("zone_id", zoneId);
@@ -50,6 +64,7 @@ async function callAISentinel(beforePath, afterPath, zoneId) {
 
   return res.json();
 }
+
 function buildResult(ai, region, beforeImageUrl, afterImageUrl) {
   return {
     mode: "change",
@@ -69,8 +84,8 @@ function buildResult(ai, region, beforeImageUrl, afterImageUrl) {
     spotCount: ai.spot_count,
     lostTreeSpots: ai.lost_tree_spots,
     resultImageB64: ai.result_image_b64,
-    ndvi: ai.ndvi, // NDVI pre-screen stats from Phase 1
-    modelRun: ai.model_run, // whether SegFormer ran or was skipped
+    ndvi: ai.ndvi,
+    modelRun: ai.model_run,
     beforeImageUrl,
     afterImageUrl,
   };
@@ -113,7 +128,6 @@ async function processRegion(region) {
     `[satelliteCron] Processing region: "${regionName}" (${regionId})`,
   );
 
-
   const beforeSnap = await Snapshot.findOne({
     region: region._id,
     type: "before",
@@ -143,7 +157,6 @@ async function processRegion(region) {
         },
       }),
     });
-
 
     await Region.updateOne({ _id: region._id }, { lastAnalyzedAt: today });
 
@@ -204,32 +217,49 @@ async function processRegion(region) {
     }),
   });
 
+  let beforePath;
+  let beforePathIsTemp = false;
+  try {
+    beforePath = await resolveImagePath(beforeSnap.imageUrl);
+    
+    beforePathIsTemp = beforePath.startsWith(os.tmpdir());
+  } catch (resolveErr) {
+    console.error(
+      `[satelliteCron] Could not resolve before image path for "${regionName}":`,
+      resolveErr.message,
+    );
+    await Snapshot.deleteOne({ _id: afterSnap._id }).catch(() => null);
+    if (afterTile?.filePath) fs.unlink(afterTile.filePath, () => null);
+    return {
+      regionId,
+      regionName,
+      status: "error",
+      message: `Before image path resolution failed: ${resolveErr.message}`,
+    };
+  }
+
   console.log(`[satelliteCron] "${regionName}" — calling AI service.`);
   let ai;
   try {
-    ai = await callAISentinel(
-      beforeSnap.imageUrl.startsWith("/uploads")
-        ? 
-          path.join(__dirname, "..", beforeSnap.imageUrl)
-        : beforeSnap.imageUrl,
-      afterTile.filePath,
-      regionId,
-    );
+    ai = await callAISentinel(beforePath, afterTile.filePath, regionId);
   } catch (aiErr) {
     console.error(
       `[satelliteCron] AI call failed for "${regionName}":`,
       aiErr.message,
     );
-
     await Snapshot.deleteOne({ _id: afterSnap._id }).catch(() => null);
     if (afterTile?.filePath) fs.unlink(afterTile.filePath, () => null);
-
     return {
       regionId,
       regionName,
       status: "ai_error",
       message: aiErr.message,
     };
+  } finally {
+    // FIX #1: Clean up temp file if we downloaded one
+    if (beforePathIsTemp && fs.existsSync(beforePath)) {
+      fs.unlink(beforePath, () => null);
+    }
   }
 
   const result = buildResult(
@@ -245,7 +275,6 @@ async function processRegion(region) {
       `confidence=${result.confidence}`,
   );
 
-
   let savedAlert = null;
   let legalStatus = "unverified";
 
@@ -257,7 +286,6 @@ async function processRegion(region) {
       legalStatus = isLegal ? "legal" : "illegal";
 
       if (isLegal) {
-
         await audit({
           action: "analysis.legal_cut_detected",
           actor: null,
@@ -310,7 +338,6 @@ async function processRegion(region) {
   }
 
   await Snapshot.deleteOne({ _id: beforeSnap._id });
-
 
   await Snapshot.updateOne(
     { _id: afterSnap._id },
@@ -412,7 +439,6 @@ async function runPipeline() {
 }
 
 function startSatelliteCron() {
-  // Lazy-require node-cron so it only loads when this function is called
   const cron = require("node-cron");
 
   if (!cron.validate(CRON_SCHEDULE)) {
@@ -439,6 +465,6 @@ function startSatelliteCron() {
 
 module.exports = {
   startSatelliteCron,
-  runPipeline, // exported so manual trigger route can call it
-  processRegion, // exported for single-region manual trigger
+  runPipeline,
+  processRegion,
 };
