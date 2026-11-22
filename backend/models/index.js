@@ -1,4 +1,3 @@
-
 const User = require("./User");
 const Region = require("./Region");
 const Alert = require("./Alert");

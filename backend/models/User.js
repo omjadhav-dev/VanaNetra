@@ -1,13 +1,6 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-/**
- * User
- * -----
- * Covers both forestry officials (who triage alerts, generate reports,
- * capture map snapshots) and public/citizen accounts (who can submit
- * reports and use the public analysis tools). Role gates dashboard access.
- */
 const userSchema = new Schema(
   {
     fullName: {
