@@ -1,1 +1,95 @@
-import {useEffect,useState} from "react";import {UserRound,Save} from "lucide-react";import {api,setSession} from "../lib/api";export default function Profile(){const [u,setU]=useState(JSON.parse(localStorage.getItem("vananetra_user")||"{}"));const [form,setForm]=useState({fullName:u.fullName||"",phone:u.phone||"",department:u.department||"",designation:u.designation||"",password:""});const [notice,setNotice]=useState("");useEffect(()=>{setForm({fullName:u.fullName||"",phone:u.phone||"",department:u.department||"",designation:u.designation||"",password:""})},[u]);const save=async()=>{try{const d=await api("/auth/profile",{method:"PATCH",body:form});setU(d.user);localStorage.setItem("vananetra_user",JSON.stringify(d.user));setNotice("Profile updated")}catch(e){setNotice(e.message)}};return <div className="min-h-screen bg-[#f6f9f7] p-6 text-gray-900"><div className="max-w-4xl mx-auto"><h1 className="text-3xl font-semibold">Profile</h1><p className="text-gray-500 mt-1">Manage your VanaNetra account.</p><div className="mt-7 grid md:grid-cols-[260px_1fr] gap-5"><div className="rounded-2xl border bg-white p-6"><div className="h-16 w-16 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700"><UserRound/></div><h2 className="font-semibold mt-4">{u.fullName}</h2><p className="text-sm text-gray-500">{u.email}</p><span className="inline-block mt-3 rounded-full bg-emerald-50 text-emerald-700 px-3 py-1 text-xs">{u.role}</span></div><div className="rounded-2xl border bg-white p-6"><div className="grid sm:grid-cols-2 gap-4">{[["fullName","Full name"],["phone","Phone"],["department","Department"],["designation","Designation"]].map(([k,l])=><label key={k} className="text-sm font-medium">{l}<input className="mt-2 w-full rounded-xl border px-4 py-3" value={form[k]} onChange={e=>setForm({...form,[k]:e.target.value})}/></label>)}<label className="text-sm font-medium sm:col-span-2">New password<input type="password" className="mt-2 w-full rounded-xl border px-4 py-3" value={form.password} onChange={e=>setForm({...form,password:e.target.value})}/></label></div><button onClick={save} className="mt-6 rounded-xl bg-emerald-700 text-white px-5 py-3"><Save size={16} className="inline mr-2"/>Save changes</button>{notice&&<p className="mt-3 text-sm text-emerald-700">{notice}</p>}</div></div></div></div>}
+import { useEffect, useState } from "react";
+import { UserRound, Save } from "lucide-react";
+import { api, setSession } from "../lib/api";
+export default function Profile() {
+  const [u, setU] = useState(
+    JSON.parse(localStorage.getItem("vananetra_user") || "{}"),
+  );
+  const [form, setForm] = useState({
+    fullName: u.fullName || "",
+    phone: u.phone || "",
+    department: u.department || "",
+    designation: u.designation || "",
+    password: "",
+  });
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    setForm({
+      fullName: u.fullName || "",
+      phone: u.phone || "",
+      department: u.department || "",
+      designation: u.designation || "",
+      password: "",
+    });
+  }, [u]);
+  const save = async () => {
+    try {
+      const d = await api("/auth/profile", { method: "PATCH", body: form });
+      setU(d.user);
+      localStorage.setItem("vananetra_user", JSON.stringify(d.user));
+      setNotice("Profile updated");
+    } catch (e) {
+      setNotice(e.message);
+    }
+  };
+  return (
+    <div className="min-h-screen bg-[#f6f9f7] p-6 text-gray-900">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-semibold">Profile</h1>
+        <p className="text-gray-500 mt-1">Manage your VanaNetra account.</p>
+        <div className="mt-7 grid md:grid-cols-[260px_1fr] gap-5">
+          <div className="rounded-2xl border bg-white p-6">
+            <div className="h-16 w-16 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-700">
+              <UserRound />
+            </div>
+            <h2 className="font-semibold mt-4">{u.fullName}</h2>
+            <p className="text-sm text-gray-500">{u.email}</p>
+            <span className="inline-block mt-3 rounded-full bg-emerald-50 text-emerald-700 px-3 py-1 text-xs">
+              {u.role}
+            </span>
+          </div>
+          <div className="rounded-2xl border bg-white p-6">
+            <div className="grid sm:grid-cols-2 gap-4">
+              {[
+                ["fullName", "Full name"],
+                ["phone", "Phone"],
+                ["department", "Department"],
+                ["designation", "Designation"],
+              ].map(([k, l]) => (
+                <label key={k} className="text-sm font-medium">
+                  {l}
+                  <input
+                    className="mt-2 w-full rounded-xl border px-4 py-3"
+                    value={form[k]}
+                    onChange={(e) => setForm({ ...form, [k]: e.target.value })}
+                  />
+                </label>
+              ))}
+              <label className="text-sm font-medium sm:col-span-2">
+                New password
+                <input
+                  type="password"
+                  className="mt-2 w-full rounded-xl border px-4 py-3"
+                  value={form.password}
+                  onChange={(e) =>
+                    setForm({ ...form, password: e.target.value })
+                  }
+                />
+              </label>
+            </div>
+            <button
+              onClick={save}
+              className="mt-6 rounded-xl bg-emerald-700 text-white px-5 py-3"
+            >
+              <Save size={16} className="inline mr-2" />
+              Save changes
+            </button>
+            {notice && (
+              <p className="mt-3 text-sm text-emerald-700">{notice}</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
