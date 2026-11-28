@@ -1,12 +1,11 @@
 const nodemailer = require("nodemailer");
 const User = require("../models/User");
 
-
 const transporter = nodemailer.createTransport({
   service: process.env.EMAIL_SERVICE || "gmail", // "gmail" | "outlook" | custom
-  host: process.env.EMAIL_HOST || undefined, // set for custom SMTP
+  host: process.env.EMAIL_HOST || undefined,      // set for custom SMTP
   port: process.env.EMAIL_PORT ? Number(process.env.EMAIL_PORT) : undefined,
-  secure: process.env.EMAIL_SECURE === "true", // true for port 465
+  secure: process.env.EMAIL_SECURE === "true",    // true for port 465
   auth: {
     user: process.env.EMAIL_USER,
     pass: process.env.EMAIL_PASS, // Gmail: use an App Password, not your account password
@@ -16,9 +15,9 @@ const transporter = nodemailer.createTransport({
 
 const SEVERITY_COLORS = {
   Critical: { bg: "#dc2626", text: "#ffffff" },
-  High: { bg: "#ea580c", text: "#ffffff" },
-  Medium: { bg: "#ca8a04", text: "#ffffff" },
-  Low: { bg: "#16a34a", text: "#ffffff" },
+  High:     { bg: "#ea580c", text: "#ffffff" },
+  Medium:   { bg: "#ca8a04", text: "#ffffff" },
+  Low:      { bg: "#16a34a", text: "#ffffff" },
 };
 
 
@@ -97,7 +96,7 @@ function buildAlertEmailHTML(alert, regionName) {
               </tr>
               <tr>
                 <td style="border-bottom:1px solid #e5e7eb;color:#6b7280;font-size:13px;font-weight:600;">Source</td>
-                <td style="border-bottom:1px solid #e5e7eb;color:#111827;font-size:14px;text-transform:capitalize;">${alert.source.replace(/-/g, " ")}</td>
+                <td style="border-bottom:1px solid #e5e7eb;color:#111827;font-size:14px;text-transform:capitalize;">${alert.source.replace(/-/g," ")}</td>
               </tr>
               <tr style="background:#f9fafb;">
                 <td style="color:#6b7280;font-size:13px;font-weight:600;">Detected At</td>
@@ -137,21 +136,14 @@ function buildAlertEmailHTML(alert, regionName) {
 </body>
 </html>`;
 }
-
-
 async function sendAlertEmailToOfficials(alert, regionName) {
   if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.warn(
-      "[emailService] EMAIL_USER / EMAIL_PASS not set — skipping email.",
-    );
+    console.warn("[emailService] EMAIL_USER / EMAIL_PASS not set — skipping email.");
     return;
   }
 
   // Fetch all active officials
-  const officials = await User.find({
-    role: "Official",
-    isActive: true,
-  }).select("email fullName");
+  const officials = await User.find({ role: "Official", isActive: true }).select("email fullName");
 
   if (!officials.length) {
     console.log("[emailService] No active officials found.");
@@ -168,24 +160,23 @@ async function sendAlertEmailToOfficials(alert, regionName) {
       subject,
       html: buildAlertEmailHTML(alert, regionName),
     });
-    console.log(
-      `[emailService] Alert email sent to ${recipients.length} official(s). MessageId: ${info.messageId}`,
-    );
+    console.log(`[emailService] Alert email sent to ${recipients.length} official(s). MessageId: ${info.messageId}`);
   } catch (err) {
     // Non-fatal — log but don't crash the analysis response
     console.error("[emailService] Failed to send alert email:", err.message);
   }
 }
 
-
+// ---------------------------------------------------------------------------
+// Exported helper — call this after creating a High/Critical alert
+// ---------------------------------------------------------------------------
 async function notifyOfficialsIfCritical(alert, regionName, isIllegal = false) {
-  const isHighSeverity =
-    alert.severity === "Critical" || alert.severity === "High";
+  const isHighSeverity = alert.severity === "Critical" || alert.severity === "High";
 
   // Send email if: High/Critical (any zone) OR illegal deforestation (any severity)
   if (isHighSeverity || isIllegal) {
     sendAlertEmailToOfficials(alert, regionName).catch((e) =>
-      console.error("[emailService] Background send error:", e.message),
+      console.error("[emailService] Background send error:", e.message)
     );
   }
 }
